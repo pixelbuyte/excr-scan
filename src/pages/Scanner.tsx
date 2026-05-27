@@ -6,7 +6,7 @@ import {
   DrawingUtils,
   type NormalizedLandmark,
 } from '@mediapipe/tasks-vision'
-import { analyzeForm, EXERCISES, type ExerciseId, type FormResult } from '../utils/exercises'
+import { analyzeForm, EXERCISES, REP_THRESHOLDS, type ExerciseId, type FormResult } from '../utils/exercises'
 
 const MEDIAPIPE_WASM = 'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/wasm'
 const POSE_MODEL =
@@ -121,15 +121,19 @@ export default function Scanner() {
 
           const form = analyzeForm(exerciseRef.current, lm)
           setFeedback(form)
-          setPhase(form.repPhase)
 
-          // Rep counting: up → down → up = 1 rep
-          if (repPhaseRef.current === 'up' && form.repPhase === 'down') {
+          // Hysteresis rep counting — phase only flips when angle crosses the FAR threshold.
+          // The 50° dead zone (105°→155° for squat) prevents boundary flicker from double-counting.
+          const { down: downThresh, up: upThresh, getAngle: getRawAngle } = REP_THRESHOLDS[exerciseRef.current]
+          const rawAngle = getRawAngle(lm)
+
+          if (repPhaseRef.current === 'up' && rawAngle < downThresh) {
             repPhaseRef.current = 'down'
-          } else if (repPhaseRef.current === 'down' && form.repPhase === 'up') {
+            setPhase('down')
+          } else if (repPhaseRef.current === 'down' && rawAngle > upThresh) {
             repPhaseRef.current = 'up'
+            setPhase('up')
             setReps(r => r + 1)
-            // Trigger "Nice!" flash
             if (flashTimer.current) clearTimeout(flashTimer.current)
             setNiceFlash(true)
             setFlashKey(k => k + 1)
