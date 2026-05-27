@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useCompete } from '../hooks/useCompete'
 import { Ambient } from '../components/Ambient'
@@ -40,9 +40,9 @@ export default function CompeteLobby() {
   }
 
   // Once connected, navigate to scanner with compete context
-  if (connected) {
-    navigate('/scan', { state: { compete: true, roomCode } })
-  }
+  useEffect(() => {
+    if (connected) navigate('/scan', { state: { compete: true, roomCode } })
+  }, [connected, roomCode, navigate])
 
   const inputStyle: React.CSSProperties = {
     ...fontMono,
@@ -59,7 +59,7 @@ export default function CompeteLobby() {
   }
 
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center px-4 relative" style={{ color: '#fff' }}>
+    <div className="min-h-[100dvh] flex flex-col items-center justify-center px-4 relative" style={{ color: '#fff' }}>
       <Ambient />
       <div className="relative z-10 w-full max-w-sm space-y-7">
         {/* Header */}

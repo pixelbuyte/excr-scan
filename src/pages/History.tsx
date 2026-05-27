@@ -78,10 +78,10 @@ export default function History() {
   }, {})
 
   return (
-    <div className="min-h-screen flex flex-col relative" style={{ color: '#fff' }}>
+    <div className="min-h-[100dvh] flex flex-col relative" style={{ color: '#fff' }}>
       <Ambient />
       {/* Header */}
-      <div className="relative z-10 flex items-center gap-3 px-4 py-4">
+      <div className="relative z-10 flex items-center gap-3 px-4 py-4" style={{ paddingTop: 'max(16px, env(safe-area-inset-top))' }}>
         <button
           onClick={() => navigate(-1)}
           className="w-9 h-9 rounded-full flex items-center justify-center active:scale-90 transition-transform"

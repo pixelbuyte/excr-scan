@@ -18,7 +18,7 @@ import { useFitness }                      from '../hooks/useFitness'
 import { useSettings }                     from '../hooks/useSettings'
 import { getDownAdjust }                   from '../utils/profile'
 import { saveSession }                     from '../utils/workoutHistory'
-import { glassDark, glassPill, glassTint, fontHead, fontMono, ACCENT, ACCENT_GREEN, ACCENT_GOLD, ACCENT_RED } from '../styles/glass'
+import { glassDark, glassPill, glassTint, fontHead, fontBody, fontMono, EASE, ACCENT, ACCENT_GREEN, ACCENT_GOLD, ACCENT_RED } from '../styles/glass'
 import { BatteryMeter }                    from '../components/BatteryMeter'
 import { SessionSummary }                  from '../components/SessionSummary'
 import { ScanlineFx }                      from '../components/ScanlineFx'
@@ -79,6 +79,7 @@ export default function Scanner() {
   const [angleLabels,   setAngleLabels]   = useState<AngleLabel[]>([])
   const [isResting,     setIsResting]     = useState(false)
   const [holdSec,       setHoldSec]       = useState(0)
+  const [showStats,     setShowStats]     = useState(false)   // fitness panel collapsed by default on phones
 
   const flashTimerRef   = useRef<ReturnType<typeof setTimeout> | null>(null)
   const mirrorRef       = useRef(mirrorMode)
@@ -375,7 +376,6 @@ export default function Scanner() {
 
   // ── Derived ───────────────────────────────────────────────────────────────
   const transform   = mirrorMode ? 'scaleX(-1)' : 'none'
-  const fmtTime     = (s: number) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`
   const isTimeBased = EXERCISES[exercise].isTimeBased
   const winnerState = isCompete && reps >= REP_TARGET ? 'win'
     : isCompete && (compete.opponent?.reps ?? 0) >= REP_TARGET ? 'lose'
@@ -389,19 +389,19 @@ export default function Scanner() {
   // ── Render ────────────────────────────────────────────────────────────────
   return (
     <div
-      className="h-screen flex flex-col overflow-hidden"
-      style={{ background: '#070810', ...(glow ? { boxShadow: glow } : {}) }}
+      className="h-[100dvh] flex flex-col overflow-hidden"
+      style={{ background: '#050505', ...(glow ? { boxShadow: glow } : {}) }}
     >
 
       {/* Top bar */}
       <div
         className="flex items-center justify-between px-3 py-2.5 shrink-0 z-10 gap-2"
-        style={{ ...glassDark, borderRadius: 0, borderLeft: 'none', borderRight: 'none', borderTop: 'none' }}
+        style={{ ...glassDark, borderRadius: 0, borderLeft: 'none', borderRight: 'none', borderTop: 'none', paddingTop: 'max(10px, env(safe-area-inset-top))' }}
       >
         <button
           onClick={() => navigate('/')}
-          className="w-8 h-8 rounded-full flex items-center justify-center shrink-0 active:scale-90 transition-transform"
-          style={{ ...glassPill, color: 'rgba(255,255,255,0.7)', fontSize: 14 }}
+          className="w-10 h-10 rounded-full flex items-center justify-center shrink-0 active:scale-90 transition-transform"
+          style={{ ...glassPill, color: 'rgba(255,255,255,0.7)', fontSize: 16 }}
         >
           ←
         </button>
@@ -412,11 +412,11 @@ export default function Scanner() {
             <button
               key={id}
               onClick={() => changeExercise(id)}
-              className="flex-shrink-0 px-3 py-1.5 rounded-full uppercase tracking-wider transition-all active:scale-95"
+              className="flex-shrink-0 px-3.5 py-2 rounded-full uppercase tracking-wider transition-all active:scale-95"
               style={
                 exercise === id
-                  ? { ...fontHead, fontSize: 8, fontWeight: 700, color: '#04121a', background: `linear-gradient(135deg, ${ACCENT}, ${ACCENT_GREEN})`, border: 'none', boxShadow: `0 2px 12px ${ACCENT}66` }
-                  : { ...fontHead, fontSize: 8, fontWeight: 700, color: 'rgba(255,255,255,0.55)', ...glassPill }
+                  ? { ...fontBody, fontSize: 10, fontWeight: 700, color: '#04201c', background: `linear-gradient(135deg, ${ACCENT}, ${ACCENT_GREEN})`, border: 'none', boxShadow: `0 2px 14px ${ACCENT}66`, whiteSpace: 'nowrap' }
+                  : { ...fontBody, fontSize: 10, fontWeight: 600, color: 'rgba(255,255,255,0.6)', ...glassPill, whiteSpace: 'nowrap' }
               }
             >
               {cfg.icon} {cfg.name}
@@ -425,23 +425,29 @@ export default function Scanner() {
         </div>
 
         {/* Controls */}
-        <div className="flex items-center gap-2 shrink-0">
-          <span style={{ ...fontMono, fontSize: 10, color: 'rgba(255,255,255,0.4)' }}>
-            {fmtTime(elapsed)}
-          </span>
+        <div className="flex items-center gap-1.5 shrink-0">
           <button
-            onClick={handleEnd}
-            className="px-3 py-1.5 rounded-full text-xs active:scale-95 transition-transform"
-            style={{ ...fontMono, ...glassPill, color: 'rgba(255,255,255,0.6)' }}
+            onClick={() => setShowStats(s => !s)}
+            className="w-10 h-10 rounded-full flex items-center justify-center active:scale-90 transition-transform text-base leading-none"
+            style={{ ...glassPill, color: showStats ? ACCENT : 'rgba(255,255,255,0.6)' }}
+            title="Stats"
           >
-            End
+            ◫
           </button>
           <button
             onClick={() => setMirrorMode(m => !m)}
-            className="w-8 h-8 rounded-full flex items-center justify-center active:scale-90 transition-transform text-base leading-none"
-            style={{ ...glassPill, color: 'rgba(255,255,255,0.6)' }}
+            className="w-10 h-10 rounded-full flex items-center justify-center active:scale-90 transition-transform text-base leading-none"
+            style={{ ...glassPill, color: mirrorMode ? ACCENT : 'rgba(255,255,255,0.6)' }}
+            title="Mirror"
           >
             ⇔
+          </button>
+          <button
+            onClick={handleEnd}
+            className="px-4 h-10 rounded-full text-xs active:scale-95 transition-transform"
+            style={{ ...fontMono, ...glassPill, color: 'rgba(255,255,255,0.7)' }}
+          >
+            End
           </button>
         </div>
       </div>
@@ -556,10 +562,10 @@ export default function Scanner() {
               )}
             </div>
 
-            {/* Form score — top right (offset left of FitnessDashboard) */}
+            {/* Form score — top right (offset left of FitnessDashboard when open) */}
             <div
               className="absolute top-3 z-[2] px-3.5 py-1.5 rounded-3xl text-center"
-              style={{ right: 118, ...glassDark }}
+              style={{ right: showStats ? 120 : 12, ...glassDark, transition: `right 0.4s ${EASE}` }}
             >
               <div style={{ ...fontHead, fontSize: 15, fontWeight: 900, color: poseDetected ? ACCENT : 'rgba(255,255,255,0.4)' }}>
                 {poseDetected ? `${formScore}%` : '--'}
@@ -569,16 +575,18 @@ export default function Scanner() {
               </div>
             </div>
 
-            {/* Fitness dashboard */}
-            <FitnessDashboard
-              calories={fitness.calories}
-              tut={fitness.tut}
-              avgPace={fitness.avgPace}
-              paceHistory={fitness.paceHistory}
-              hrZone={fitness.hrZone}
-              volume={fitness.volume}
-              unit={settings.unit}
-            />
+            {/* Fitness dashboard — toggle (hidden by default so camera is unobstructed on phones) */}
+            {showStats && (
+              <FitnessDashboard
+                calories={fitness.calories}
+                tut={fitness.tut}
+                avgPace={fitness.avgPace}
+                paceHistory={fitness.paceHistory}
+                hrZone={fitness.hrZone}
+                volume={fitness.volume}
+                unit={settings.unit}
+              />
+            )}
 
             {/* Low-light badge */}
             {isDark && settings.lowLightBoost && (
@@ -642,7 +650,7 @@ export default function Scanner() {
             {isCompete && compete.connected && (
               <div
                 className="absolute z-[2] px-4 py-3 rounded-3xl space-y-1 text-center"
-                style={{ top: 64, right: 118, ...glassTint(ACCENT_GREEN), minWidth: 80 }}
+                style={{ top: 64, right: showStats ? 120 : 12, ...glassTint(ACCENT_GREEN), minWidth: 80, transition: `right 0.4s ${EASE}` }}
               >
                 <div style={{ ...fontMono, fontSize: 8, color: 'rgba(255,255,255,0.4)', textTransform: 'uppercase', letterSpacing: 1 }}>Rival</div>
                 <div style={{ ...fontHead, fontSize: 28, fontWeight: 900, color: ACCENT_GREEN }}>
@@ -692,7 +700,7 @@ export default function Scanner() {
             )}
 
             {/* Feedback banner */}
-            <div className="absolute bottom-0 inset-x-0 z-[2] px-3 pb-3">
+            <div className="absolute bottom-0 inset-x-0 z-[2] px-3" style={{ paddingBottom: 'max(12px, env(safe-area-inset-bottom))' }}>
               {feedback ? (
                 <div className="rounded-3xl px-5 py-4" style={glassTint(bannerStyle!.text)}>
                   <p style={{ ...fontHead, fontSize: 24, fontWeight: 900, color: bannerStyle!.text, lineHeight: 1.1 }}>
