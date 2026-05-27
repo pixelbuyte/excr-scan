@@ -22,6 +22,21 @@ interface CompeteApi {
 
 const EMPTY_OPP: OpponentState = { reps: 0, formScore: 0, exercise: 'squat', phase: 'up' }
 
+// ICE servers — STUN for discovery + free TURN relays so phone (cellular) ↔ PC (wifi)
+// can connect even behind symmetric NAT where plain STUN fails.
+const PEER_CONFIG = {
+  debug: 0,
+  config: {
+    iceServers: [
+      { urls: 'stun:stun.l.google.com:19302' },
+      { urls: 'stun:global.stun.twilio.com:3478' },
+      { urls: 'turn:openrelay.metered.ca:80',  username: 'openrelayproject', credential: 'openrelayproject' },
+      { urls: 'turn:openrelay.metered.ca:443', username: 'openrelayproject', credential: 'openrelayproject' },
+      { urls: 'turn:openrelay.metered.ca:443?transport=tcp', username: 'openrelayproject', credential: 'openrelayproject' },
+    ],
+  },
+} as const
+
 const CompeteContext = createContext<CompeteApi | null>(null)
 
 // Single shared peer instance across the whole app so the connection
@@ -55,7 +70,7 @@ export function CompeteProvider({ children }: { children: ReactNode }) {
       // Clean any prior peer
       peerRef.current?.destroy()
       const code = Math.random().toString(36).substring(2, 8).toUpperCase().padEnd(6, 'X')
-      const peer = new Peer(`EXCR-${code}`, { debug: 0 })
+      const peer = new Peer(`EXCR-${code}`, PEER_CONFIG)
       peerRef.current = peer
       setError('')
       setWaiting(true)
@@ -80,7 +95,7 @@ export function CompeteProvider({ children }: { children: ReactNode }) {
   const joinRoom = useCallback((code: string): Promise<void> => {
     return new Promise((resolve, reject) => {
       peerRef.current?.destroy()
-      const peer = new Peer({ debug: 0 })
+      const peer = new Peer(PEER_CONFIG)
       peerRef.current = peer
       setError('')
 
