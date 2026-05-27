@@ -1,14 +1,57 @@
 @import "tailwindcss";
 
+@theme {
+  --font-orbitron: 'Orbitron', sans-serif;
+  --font-spacemono: 'Space Mono', monospace;
+  --color-neon-cyan: #00f0ff;
+  --color-neon-green: #39ff14;
+  --color-hud-bg: rgba(0, 0, 0, 0.72);
+}
+
+/* ── Animations ── */
+
 @keyframes nice-flash {
-  0%   { opacity: 0; transform: scale(0.7) translateY(10px); }
-  15%  { opacity: 1; transform: scale(1.08) translateY(0); }
-  75%  { opacity: 1; transform: scale(1) translateY(0); }
-  100% { opacity: 0; transform: scale(1.05) translateY(-24px); }
+  0%   { opacity: 0; transform: scale(0.6) translateY(16px); }
+  15%  { opacity: 1; transform: scale(1.1) translateY(0);    }
+  75%  { opacity: 1; transform: scale(1)   translateY(0);    }
+  100% { opacity: 0; transform: scale(1.05) translateY(-28px); }
 }
 
 @keyframes phase-pop {
   0%   { transform: scale(1); }
-  40%  { transform: scale(1.18); }
+  40%  { transform: scale(1.2); }
   100% { transform: scale(1); }
+}
+
+@keyframes battery-pulse {
+  0%, 100% { box-shadow: 0 0 8px #39ff14, 0 0 20px #39ff14; }
+  50%       { box-shadow: 0 0 20px #39ff14, 0 0 40px #39ff14; }
+}
+
+@keyframes scanline {
+  0%   { transform: translateY(-100%); }
+  100% { transform: translateY(100vh); }
+}
+
+@keyframes winner-pop {
+  0%   { opacity: 0; transform: scale(0.5); }
+  60%  { transform: scale(1.15); }
+  100% { opacity: 1; transform: scale(1); }
+}
+
+@keyframes countdown-pulse {
+  0%   { opacity: 1; transform: scale(1.4); }
+  100% { opacity: 0; transform: scale(0.6); }
+}
+
+@keyframes glow-border {
+  0%, 100% { border-color: rgba(0, 240, 255, 0.4); }
+  50%       { border-color: rgba(0, 240, 255, 0.9); }
+}
+
+@keyframes mesh-drift {
+  0%   { transform: translate(0, 0) rotate(0deg); }
+  33%  { transform: translate(30px, -20px) rotate(1deg); }
+  66%  { transform: translate(-20px, 30px) rotate(-1deg); }
+  100% { transform: translate(0, 0) rotate(0deg); }
 }

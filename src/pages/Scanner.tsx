@@ -1,65 +1,113 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useLocation } from 'react-router-dom'
 import {
-  PoseLandmarker,
-  FilesetResolver,
-  DrawingUtils,
+  PoseLandmarker, FilesetResolver, DrawingUtils,
   type NormalizedLandmark,
 } from '@mediapipe/tasks-vision'
-import { analyzeForm, EXERCISES, REP_THRESHOLDS, type ExerciseId, type FormResult } from '../utils/exercises'
+import { analyzeForm, EXERCISES, getFormScore, type ExerciseId, type FormResult } from '../utils/exercises'
+import { useRepCounter } from '../hooks/useRepCounter'
+import { useAudio }      from '../hooks/useAudio'
+import { useCompete, type OpponentState } from '../hooks/useCompete'
+import { BatteryMeter }  from '../components/BatteryMeter'
+import { SessionSummary } from '../components/SessionSummary'
+import { ScanlineFx }   from '../components/ScanlineFx'
 
 const MEDIAPIPE_WASM = 'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/wasm'
-const POSE_MODEL =
-  'https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/1/pose_landmarker_lite.task'
+const POSE_MODEL     = 'https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/1/pose_landmarker_lite.task'
+const EXERCISES_LIST = Object.entries(EXERCISES) as [ExerciseId, { name: string }][]
+const REP_TARGET     = 10  // first to this in compete mode wins
 
-const BANNER_BG: Record<FormResult['color'], string> = {
-  green:  'bg-green-950/80 border-green-500/40',
-  yellow: 'bg-yellow-950/80 border-yellow-500/40',
-  red:    'bg-red-950/80 border-red-500/40',
+const BANNER_STYLE: Record<FormResult['color'], { bg: string; border: string; text: string }> = {
+  green:  { bg: 'rgba(0,30,0,0.85)',  border: 'rgba(57,255,20,0.5)',  text: '#39ff14' },
+  yellow: { bg: 'rgba(30,25,0,0.85)', border: 'rgba(255,215,0,0.5)',  text: '#ffd700' },
+  red:    { bg: 'rgba(30,0,0,0.85)',  border: 'rgba(255,60,60,0.5)',   text: '#ff4d4d' },
 }
-const BANNER_TEXT: Record<FormResult['color'], string> = {
-  green:  'text-green-300',
-  yellow: 'text-yellow-300',
-  red:    'text-red-300',
-}
-const PHASE_MESSAGES = ['Down ↓', 'Up ↑'] as const
 
 export default function Scanner() {
-  const navigate = useNavigate()
-  const videoRef    = useRef<HTMLVideoElement>(null)
-  const canvasRef   = useRef<HTMLCanvasElement>(null)
+  const navigate  = useNavigate()
+  const location  = useLocation()
+  const competeCtx = (location.state as { compete?: boolean; roomCode?: string } | null)
+
+  // ── Camera + MediaPipe ──────────────────────────────────────────────────────
+  const videoRef      = useRef<HTMLVideoElement>(null)
+  const canvasRef     = useRef<HTMLCanvasElement>(null)
   const landmarkerRef = useRef<PoseLandmarker | null>(null)
-  const rafRef      = useRef(0)
-  const lastTime    = useRef(-1)
-  const repPhaseRef = useRef<'up' | 'down'>('up')
-  const exerciseRef = useRef<ExerciseId>('squat')
-  const flashTimer  = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const rafRef        = useRef(0)
+  const lastTimeRef   = useRef(-1)
 
-  const [exercise, setExercise] = useState<ExerciseId>('squat')
-  const [reps, setReps]         = useState(0)
-  const [feedback, setFeedback] = useState<FormResult | null>(null)
-  const [phase, setPhase]       = useState<'up' | 'down'>('up')
-  const [niceFlash, setNiceFlash] = useState(false)
-  const [flashKey, setFlashKey]   = useState(0)
-  const [status, setStatus]     = useState<'loading' | 'ready' | 'error'>('loading')
-  const [errorMsg, setErrorMsg] = useState('')
+  const [status,    setStatus]   = useState<'loading' | 'ready' | 'error'>('loading')
+  const [errorMsg,  setErrorMsg] = useState('')
 
-  exerciseRef.current = exercise
+  // ── Exercise & UI state ─────────────────────────────────────────────────────
+  const [exercise,    setExercise]    = useState<ExerciseId>('squat')
+  const [feedback,    setFeedback]    = useState<FormResult | null>(null)
+  const [formScore,   setFormScore]   = useState(0)
+  const [mirrorMode,  setMirrorMode]  = useState(true)
+  const [showSummary, setShowSummary] = useState(false)
+  const [niceKey,     setNiceKey]     = useState(0)
+  const [niceVisible, setNiceVisible] = useState(false)
+  const flashTimer    = useRef<ReturnType<typeof setTimeout> | null>(null)
 
-  // Init MediaPipe + camera
+  // ── Session tracking ────────────────────────────────────────────────────────
+  const [elapsed, setElapsed]   = useState(0)
+  const sessionStart            = useRef(0)
+  const formScoreHistory        = useRef<number[]>([])
+  const bestStreakRef            = useRef(0)
+  const currentStreakRef         = useRef(0)
+
+  // ── Hooks ───────────────────────────────────────────────────────────────────
+  const { repSound } = useAudio()
+
+  const handleRep = useCallback(() => {
+    repSound()
+    try { navigator.vibrate?.(120) } catch {}
+    setNiceKey(k => k + 1)
+    setNiceVisible(true)
+    if (flashTimer.current) clearTimeout(flashTimer.current)
+    flashTimer.current = setTimeout(() => setNiceVisible(false), 950)
+  }, [repSound])
+
+  const { reps, depth, repState, process: processRep, reset: resetRep } =
+    useRepCounter(exercise, handleRep)
+
+  // Compete mode
+  const compete = useCompete()
+  const isCompete = !!competeCtx?.compete
+  const broadcastRef = useRef<(data: Partial<OpponentState>) => void>(compete.broadcast)
+  broadcastRef.current = compete.broadcast
+
+  // ── Session timer ────────────────────────────────────────────────────────────
+  useEffect(() => {
+    if (status !== 'ready') return
+    sessionStart.current = performance.now()
+    const id = setInterval(() => {
+      setElapsed(Math.floor((performance.now() - sessionStart.current) / 1000))
+    }, 1000)
+    return () => clearInterval(id)
+  }, [status])
+
+  // Broadcast to opponent every 800ms
+  useEffect(() => {
+    if (!isCompete || !compete.connected) return
+    const id = setInterval(() => {
+      broadcastRef.current({ reps, formScore, exercise, phase: repState === 'SQUATTING' ? 'down' : 'up' })
+    }, 800)
+    return () => clearInterval(id)
+  }, [isCompete, compete.connected, reps, formScore, exercise, repState])
+
+  // ── MediaPipe + camera init ──────────────────────────────────────────────────
   useEffect(() => {
     let cancelled = false
-
     async function init() {
       try {
         const vision = await FilesetResolver.forVisionTasks(MEDIAPIPE_WASM)
-        const landmarker = await PoseLandmarker.createFromOptions(vision, {
+        const lm = await PoseLandmarker.createFromOptions(vision, {
           baseOptions: { modelAssetPath: POSE_MODEL, delegate: 'GPU' },
           runningMode: 'VIDEO',
           numPoses: 1,
         })
-        if (cancelled) { landmarker.close(); return }
-        landmarkerRef.current = landmarker
+        if (cancelled) { lm.close(); return }
+        landmarkerRef.current = lm
 
         const stream = await navigator.mediaDevices.getUserMedia({
           video: { facingMode: 'user', width: { ideal: 1280 }, height: { ideal: 720 } },
@@ -71,231 +119,357 @@ export default function Scanner() {
         await video.play()
         setStatus('ready')
       } catch (e) {
-        if (!cancelled) {
-          setErrorMsg(e instanceof Error ? e.message : 'Unknown error')
-          setStatus('error')
-        }
+        if (!cancelled) { setErrorMsg(e instanceof Error ? e.message : 'Unknown error'); setStatus('error') }
       }
     }
-
     init()
     return () => { cancelled = true }
   }, [])
 
-  // Detection loop
+  // ── Detection loop ────────────────────────────────────────────────────────────
+  const exerciseRef = useRef(exercise)
+  exerciseRef.current = exercise
+
   useEffect(() => {
     if (status !== 'ready') return
-
-    const video   = videoRef.current!
-    const canvas  = canvasRef.current!
-    const ctx     = canvas.getContext('2d')!
-    const drawing = new DrawingUtils(ctx)
+    const video  = videoRef.current!
+    const canvas = canvasRef.current!
+    const ctx    = canvas.getContext('2d')!
+    const draw   = new DrawingUtils(ctx)
 
     function loop() {
       if (!landmarkerRef.current || video.paused || video.ended) {
-        rafRef.current = requestAnimationFrame(loop)
-        return
+        rafRef.current = requestAnimationFrame(loop); return
       }
-
       canvas.width  = video.videoWidth
       canvas.height = video.videoHeight
 
-      if (video.currentTime !== lastTime.current) {
-        lastTime.current = video.currentTime
+      if (video.currentTime !== lastTimeRef.current) {
+        lastTimeRef.current = video.currentTime
         const result = landmarkerRef.current.detectForVideo(video, performance.now())
-
         ctx.clearRect(0, 0, canvas.width, canvas.height)
 
         if (result.landmarks.length > 0) {
           const lm: NormalizedLandmark[] = result.landmarks[0]
 
-          drawing.drawConnectors(lm, PoseLandmarker.POSE_CONNECTIONS, {
-            color: 'rgba(255,255,255,0.5)',
-            lineWidth: 2,
-          })
-          drawing.drawLandmarks(lm, {
-            radius: 4,
-            color: 'rgba(255,255,255,0.9)',
-            fillColor: 'rgba(0,0,0,0.4)',
-          })
+          // Neon cyan skeleton with glow
+          ctx.save()
+          ctx.shadowBlur  = 10
+          ctx.shadowColor = '#00f0ff'
+          draw.drawConnectors(lm, PoseLandmarker.POSE_CONNECTIONS, { color: '#00f0ff', lineWidth: 2 })
+          ctx.shadowBlur = 0
+          draw.drawLandmarks(lm, { radius: 4, color: 'rgba(0,240,255,0.9)', fillColor: 'rgba(0,0,0,0.5)' })
+          ctx.restore()
 
-          const form = analyzeForm(exerciseRef.current, lm)
+          processRep(lm)
+          const form  = analyzeForm(exerciseRef.current, lm)
+          const score = getFormScore(exerciseRef.current, lm)
           setFeedback(form)
+          setFormScore(score)
 
-          // Hysteresis rep counting — phase only flips when angle crosses the FAR threshold.
-          // The 50° dead zone (105°→155° for squat) prevents boundary flicker from double-counting.
-          const { down: downThresh, up: upThresh, getAngle: getRawAngle } = REP_THRESHOLDS[exerciseRef.current]
-          const rawAngle = getRawAngle(lm)
-
-          if (repPhaseRef.current === 'up' && rawAngle < downThresh) {
-            repPhaseRef.current = 'down'
-            setPhase('down')
-          } else if (repPhaseRef.current === 'down' && rawAngle > upThresh) {
-            repPhaseRef.current = 'up'
-            setPhase('up')
-            setReps(r => r + 1)
-            if (flashTimer.current) clearTimeout(flashTimer.current)
-            setNiceFlash(true)
-            setFlashKey(k => k + 1)
-            flashTimer.current = setTimeout(() => setNiceFlash(false), 900)
+          // Track form score history on each rep phase entry
+          if (form.color === 'green') {
+            currentStreakRef.current += 1
+            if (currentStreakRef.current > bestStreakRef.current) bestStreakRef.current = currentStreakRef.current
+          } else {
+            currentStreakRef.current = 0
           }
         } else {
           setFeedback(null)
         }
       }
-
       rafRef.current = requestAnimationFrame(loop)
     }
 
     loop()
     return () => cancelAnimationFrame(rafRef.current)
-  }, [status])
+  }, [status, processRep])
 
-  // Cleanup on unmount
+  // ── Cleanup ────────────────────────────────────────────────────────────────
   useEffect(() => {
     return () => {
       cancelAnimationFrame(rafRef.current)
       if (flashTimer.current) clearTimeout(flashTimer.current)
       const video = videoRef.current
-      if (video?.srcObject) {
-        (video.srcObject as MediaStream).getTracks().forEach(t => t.stop())
-      }
+      if (video?.srcObject) (video.srcObject as MediaStream).getTracks().forEach(t => t.stop())
       landmarkerRef.current?.close()
     }
   }, [])
 
-  const handleExerciseChange = useCallback((ex: ExerciseId) => {
+  const changeExercise = useCallback((ex: ExerciseId) => {
     setExercise(ex)
-    setReps(0)
     setFeedback(null)
-    setPhase('up')
-    repPhaseRef.current = 'up'
-  }, [])
+    setFormScore(0)
+    resetRep()
+  }, [resetRep])
 
+  function handleEnd() {
+    formScoreHistory.current.push(formScore)
+    setShowSummary(true)
+  }
+
+  function handleSummaryClose() {
+    setShowSummary(false)
+    resetRep()
+    setElapsed(0)
+    sessionStart.current = performance.now()
+    formScoreHistory.current = []
+    bestStreakRef.current = 0
+    currentStreakRef.current = 0
+  }
+
+  // ── Helpers ─────────────────────────────────────────────────────────────────
+  const transform = mirrorMode ? 'scaleX(-1)' : 'none'
+  const fmtTime = (s: number) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`
+  const avgScore = formScoreHistory.current.length
+    ? Math.round(formScoreHistory.current.reduce((a, b) => a + b, 0) / formScoreHistory.current.length)
+    : formScore
+  const bannerStyle = feedback ? BANNER_STYLE[feedback.color] : null
+
+  const winnerState = isCompete && reps >= REP_TARGET ? 'win'
+    : isCompete && compete.opponent.reps >= REP_TARGET ? 'lose'
+    : null
+
+  // ── Render ───────────────────────────────────────────────────────────────────
   return (
-    <div className="h-screen bg-black text-white flex flex-col overflow-hidden">
-      {/* Header */}
-      <div className="flex items-center justify-between px-4 py-3 bg-black/80 backdrop-blur-sm border-b border-white/10 shrink-0 z-10">
-        <button
-          onClick={() => navigate('/')}
-          className="flex items-center gap-1.5 text-white/60 hover:text-white transition-colors text-sm"
-        >
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
-          </svg>
-          Back
-        </button>
+    <div className="h-screen flex flex-col overflow-hidden" style={{ background: '#0a0a0a' }}>
 
-        <span className="font-semibold text-sm">ExcrScan</span>
-
-        <select
-          value={exercise}
-          onChange={e => handleExerciseChange(e.target.value as ExerciseId)}
-          className="bg-white/10 border border-white/20 rounded-lg px-3 py-1.5 text-sm text-white
-                     focus:outline-none focus:ring-1 focus:ring-white/30 cursor-pointer"
-        >
-          {(Object.entries(EXERCISES) as [ExerciseId, { name: string }][]).map(([id, { name }]) => (
-            <option key={id} value={id} className="bg-zinc-900">{name}</option>
+      {/* ── Top bar ── */}
+      <div
+        className="flex items-center justify-between px-3 py-2 shrink-0 z-10"
+        style={{ background: 'rgba(0,0,0,0.9)', borderBottom: '1px solid rgba(0,240,255,0.12)' }}
+      >
+        {/* Back + exercise pills */}
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => navigate('/')}
+            className="text-white/40 hover:text-white transition-colors mr-1"
+            style={{ fontFamily: '"Space Mono", monospace', fontSize: 12 }}
+          >
+            ←
+          </button>
+          {EXERCISES_LIST.map(([id, { name }]) => (
+            <button
+              key={id}
+              onClick={() => changeExercise(id)}
+              className="px-3 py-1 rounded-full text-xs font-bold uppercase tracking-widest transition-all active:scale-95"
+              style={{
+                fontFamily: '"Orbitron", sans-serif',
+                background: exercise === id ? '#00f0ff' : 'rgba(0,240,255,0.06)',
+                color: exercise === id ? '#000' : 'rgba(0,240,255,0.6)',
+                border: `1px solid ${exercise === id ? '#00f0ff' : 'rgba(0,240,255,0.2)'}`,
+              }}
+            >
+              {name}
+            </button>
           ))}
-        </select>
+        </div>
+
+        {/* Timer */}
+        <span
+          className="text-white/50 tabular-nums text-sm"
+          style={{ fontFamily: '"Space Mono", monospace' }}
+        >
+          {fmtTime(elapsed)}
+        </span>
+
+        {/* Reps */}
+        <div className="flex items-center gap-2">
+          {isCompete && (
+            <span
+              className="text-xs font-bold tabular-nums"
+              style={{ fontFamily: '"Orbitron", sans-serif', color: '#39ff14' }}
+            >
+              {compete.opponent.reps}
+            </span>
+          )}
+          <div
+            className="text-xl font-black tabular-nums"
+            style={{ fontFamily: '"Orbitron", sans-serif', color: '#00f0ff' }}
+          >
+            {reps}
+          </div>
+          <span className="text-white/30 text-xs uppercase tracking-widest" style={{ fontFamily: '"Space Mono", monospace' }}>
+            reps
+          </span>
+          <button
+            onClick={handleEnd}
+            className="ml-2 px-2 py-1 rounded text-xs text-white/30 hover:text-white/70 transition-colors"
+            style={{ fontFamily: '"Space Mono", monospace', border: '1px solid rgba(255,255,255,0.1)' }}
+          >
+            End
+          </button>
+          <button
+            onClick={() => setMirrorMode(m => !m)}
+            title="Mirror mode"
+            className="text-white/30 hover:text-white/70 transition-colors text-lg leading-none"
+          >
+            ⇔
+          </button>
+        </div>
       </div>
 
-      {/* Camera + overlay stack */}
+      {/* ── Camera area ── */}
       <div className="relative flex-1 overflow-hidden">
-        {/* Loading */}
         {status === 'loading' && (
-          <div className="absolute inset-0 flex flex-col items-center justify-center gap-4 text-white/50 z-20">
-            <div className="w-10 h-10 border-2 border-white/20 border-t-white rounded-full animate-spin" />
-            <span>Loading pose model…</span>
+          <div className="absolute inset-0 flex flex-col items-center justify-center gap-4 z-20" style={{ color: 'rgba(0,240,255,0.5)' }}>
+            <div className="w-10 h-10 border-2 border-cyan-400/20 border-t-cyan-400 rounded-full animate-spin" />
+            <span style={{ fontFamily: '"Space Mono", monospace', fontSize: 13 }}>Initialising pose model…</span>
           </div>
         )}
 
-        {/* Error */}
         {status === 'error' && (
           <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 px-8 text-center z-20">
-            <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="text-red-400">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z" />
-            </svg>
-            <span className="text-red-400 font-medium">Camera error</span>
-            <span className="text-white/40 text-sm">{errorMsg}</span>
-            <button onClick={() => navigate('/')} className="mt-2 px-5 py-2 rounded-xl bg-white/10 hover:bg-white/20 transition-colors text-sm">
-              Go back
+            <span className="text-red-400 font-bold" style={{ fontFamily: '"Orbitron", sans-serif' }}>Camera Error</span>
+            <span className="text-white/30 text-sm" style={{ fontFamily: '"Space Mono", monospace' }}>{errorMsg}</span>
+            <button onClick={() => navigate('/')} className="mt-2 px-4 py-2 rounded bg-white/10 hover:bg-white/20 transition text-sm" style={{ fontFamily: '"Space Mono", monospace' }}>
+              ← Back
             </button>
           </div>
         )}
 
-        {/* Video + skeleton canvas */}
-        <video
-          ref={videoRef}
-          className="w-full h-full object-cover"
-          playsInline muted
-          style={{ display: status === 'ready' ? 'block' : 'none', transform: 'scaleX(-1)' }}
-        />
-        <canvas
-          ref={canvasRef}
-          className="absolute inset-0 w-full h-full object-cover pointer-events-none z-[1]"
-          style={{ display: status === 'ready' ? 'block' : 'none', transform: 'scaleX(-1)' }}
-        />
+        {/* Video + canvas */}
+        <video ref={videoRef} className="w-full h-full object-cover" playsInline muted
+          style={{ display: status === 'ready' ? 'block' : 'none', transform }} />
+        <canvas ref={canvasRef} className="absolute inset-0 w-full h-full object-cover pointer-events-none z-[1]"
+          style={{ display: status === 'ready' ? 'block' : 'none', transform }} />
 
-        {/* ── HUD (all z-[2] so it sits above canvas) ── */}
+        {status === 'ready' && <ScanlineFx />}
+
+        {/* ── HUD ── */}
         {status === 'ready' && (
           <>
-            {/* Top-left: rep counter + phase badge */}
-            <div className="absolute top-3 left-3 z-[2] flex items-start gap-2">
-              {/* Rep counter */}
-              <div className="bg-black/70 backdrop-blur-md rounded-2xl px-4 py-3 border border-white/10 text-center min-w-[72px]">
-                <div className="text-5xl font-black tabular-nums leading-none">{reps}</div>
-                <div className="text-white/40 text-[11px] uppercase tracking-widest mt-1 font-medium">Reps</div>
-              </div>
-
-              {/* Phase badge */}
-              {feedback && (
-                <div
-                  key={phase}
-                  className="bg-black/70 backdrop-blur-md rounded-xl px-3 py-2 border border-white/10"
-                  style={{ animation: 'phase-pop 0.25s ease-out' }}
-                >
-                  <div className="text-white font-bold text-sm tabular-nums">
-                    {phase === 'down' ? PHASE_MESSAGES[0] : PHASE_MESSAGES[1]}
-                  </div>
-                </div>
-              )}
+            {/* Battery meter — left edge */}
+            <div className="absolute left-3 top-1/2 -translate-y-1/2 z-[2]">
+              <BatteryMeter depth={depth} />
             </div>
 
-            {/* Center "Nice!" flash */}
-            {niceFlash && (
+            {/* Phase badge — top left */}
+            <div
+              className="absolute top-3 left-14 z-[2] px-3 py-1.5 rounded-lg"
+              style={{
+                fontFamily: '"Orbitron", sans-serif',
+                fontSize: 11,
+                fontWeight: 700,
+                color: repState === 'SQUATTING' ? '#39ff14' : 'rgba(255,255,255,0.4)',
+                background: 'rgba(0,0,0,0.65)',
+                border: `1px solid ${repState === 'SQUATTING' ? 'rgba(57,255,20,0.4)' : 'rgba(255,255,255,0.1)'}`,
+                animation: 'phase-pop 0.25s ease-out',
+              }}
+              key={repState}
+            >
+              {repState === 'SQUATTING' ? '▼ DOWN' : repState === 'DESCENDING' ? '↓ GO' : '▲ STAND'}
+            </div>
+
+            {/* Form score — top right */}
+            <div
+              className="absolute top-3 right-3 z-[2] px-3 py-1.5 rounded-lg text-center"
+              style={{ background: 'rgba(0,0,0,0.65)', border: '1px solid rgba(0,240,255,0.15)' }}
+            >
+              <div className="text-sm font-black tabular-nums" style={{ fontFamily: '"Orbitron", sans-serif', color: '#00f0ff' }}>
+                {feedback ? `${formScore}%` : '--'}
+              </div>
+              <div className="text-white/25 uppercase tracking-widest" style={{ fontFamily: '"Space Mono", monospace', fontSize: 9 }}>
+                Form
+              </div>
+            </div>
+
+            {/* Compete opponent panel */}
+            {isCompete && compete.connected && (
               <div
-                key={flashKey}
+                className="absolute top-14 right-3 z-[2] px-4 py-3 rounded-xl space-y-1"
+                style={{ background: 'rgba(0,0,0,0.75)', border: '1px solid rgba(57,255,20,0.3)', minWidth: 80 }}
+              >
+                <div className="text-white/30 text-center uppercase tracking-widest" style={{ fontFamily: '"Space Mono", monospace', fontSize: 9 }}>Rival</div>
+                <div className="text-3xl font-black text-center tabular-nums" style={{ fontFamily: '"Orbitron", sans-serif', color: '#39ff14' }}>
+                  {compete.opponent.reps}
+                </div>
+                <div className="text-white/30 text-center" style={{ fontFamily: '"Space Mono", monospace', fontSize: 9 }}>
+                  Form {compete.opponent.formScore}%
+                </div>
+              </div>
+            )}
+
+            {/* Center "Nice!" flash */}
+            {niceVisible && (
+              <div
+                key={niceKey}
                 className="absolute inset-0 flex items-center justify-center z-[3] pointer-events-none"
-                style={{ animation: 'nice-flash 0.9s ease-out forwards' }}
+                style={{ animation: 'nice-flash 0.95s ease-out forwards' }}
               >
                 <span
-                  className="text-7xl font-black text-green-400 select-none"
-                  style={{ textShadow: '0 0 40px rgba(74,222,128,0.9), 0 0 80px rgba(74,222,128,0.5)' }}
+                  className="font-black select-none"
+                  style={{
+                    fontFamily: '"Orbitron", sans-serif',
+                    fontSize: 64,
+                    color: '#39ff14',
+                    textShadow: '0 0 30px rgba(57,255,20,0.9), 0 0 70px rgba(57,255,20,0.5)',
+                  }}
                 >
-                  Nice! 🎉
+                  NICE! 💪
                 </span>
               </div>
             )}
 
+            {/* Winner overlay */}
+            {winnerState && (
+              <div
+                className="absolute inset-0 flex flex-col items-center justify-center z-[4]"
+                style={{ background: 'rgba(0,0,0,0.85)' }}
+              >
+                <div
+                  className="font-black text-center"
+                  style={{
+                    fontFamily: '"Orbitron", sans-serif',
+                    fontSize: 56,
+                    color: winnerState === 'win' ? '#39ff14' : '#ff4d4d',
+                    textShadow: `0 0 40px ${winnerState === 'win' ? 'rgba(57,255,20,0.9)' : 'rgba(255,77,77,0.9)'}`,
+                    animation: 'winner-pop 0.5s ease-out forwards',
+                  }}
+                >
+                  {winnerState === 'win' ? '🏆 WINNER!' : '💀 DEFEATED'}
+                </div>
+                <button
+                  onClick={() => navigate('/')}
+                  className="mt-8 px-8 py-3 rounded-xl font-black uppercase tracking-widest"
+                  style={{ fontFamily: '"Orbitron", sans-serif', background: '#00f0ff', color: '#000' }}
+                >
+                  Home
+                </button>
+              </div>
+            )}
+
             {/* Bottom feedback banner */}
-            <div className="absolute bottom-0 inset-x-0 z-[2]">
+            <div className="absolute bottom-0 inset-x-0 z-[2] px-3 pb-3">
               {feedback ? (
                 <div
-                  className={`mx-3 mb-3 rounded-2xl border backdrop-blur-md px-6 py-4 ${BANNER_BG[feedback.color]}`}
+                  className="rounded-2xl px-5 py-4 backdrop-blur-md"
+                  style={{
+                    background: bannerStyle!.bg,
+                    border: `1px solid ${bannerStyle!.border}`,
+                  }}
                 >
-                  <p className={`text-3xl font-black leading-tight ${BANNER_TEXT[feedback.color]}`}>
+                  <p
+                    className="font-black leading-tight"
+                    style={{ fontFamily: '"Orbitron", sans-serif', fontSize: 26, color: bannerStyle!.text }}
+                  >
                     {feedback.feedback}
                   </p>
-                  <p className="text-white/30 text-sm mt-1 font-medium">
-                    {EXERCISES[exercise].name} · {phase === 'down' ? 'going down' : 'coming up'}
+                  <p className="mt-1 text-white/30" style={{ fontFamily: '"Space Mono", monospace', fontSize: 11 }}>
+                    {EXERCISES[exercise].name} · {repState === 'SQUATTING' ? 'at depth' : repState === 'DESCENDING' ? 'descending' : 'standing'}
+                    {isCompete && ` · You ${reps} vs ${compete.opponent.reps}`}
                   </p>
                 </div>
               ) : (
-                <div className="mx-3 mb-3 rounded-2xl border border-white/10 bg-black/60 backdrop-blur-md px-6 py-4">
-                  <p className="text-2xl font-bold text-white/50">Stand in frame to begin</p>
-                  <p className="text-white/20 text-sm mt-1">
-                    Position yourself so your full body is visible
+                <div
+                  className="rounded-2xl px-5 py-4 backdrop-blur-md"
+                  style={{ background: 'rgba(0,0,0,0.65)', border: '1px solid rgba(255,255,255,0.08)' }}
+                >
+                  <p className="font-bold" style={{ fontFamily: '"Orbitron", sans-serif', fontSize: 18, color: 'rgba(255,255,255,0.35)' }}>
+                    Stand in frame to begin
+                  </p>
+                  <p style={{ fontFamily: '"Space Mono", monospace', fontSize: 11, color: 'rgba(255,255,255,0.18)' }}>
+                    Position your full body in view
                   </p>
                 </div>
               )}
@@ -303,6 +477,17 @@ export default function Scanner() {
           </>
         )}
       </div>
+
+      {/* Session Summary modal */}
+      {showSummary && (
+        <SessionSummary
+          reps={reps}
+          avgFormScore={avgScore}
+          elapsedSeconds={elapsed}
+          bestStreak={bestStreakRef.current}
+          onClose={handleSummaryClose}
+        />
+      )}
     </div>
   )
 }
