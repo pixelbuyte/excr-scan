@@ -209,11 +209,21 @@ export default function Scanner() {
     async function init() {
       try {
         const vision = await FilesetResolver.forVisionTasks(MEDIAPIPE_WASM)
-        const lm = await PoseLandmarker.createFromOptions(vision, {
-          baseOptions: { modelAssetPath: POSE_MODEL, delegate: 'GPU' },
-          runningMode: 'VIDEO',
-          numPoses: 1,
-        })
+        // Try GPU first; fall back to CPU on devices without a usable GPU (older phones, headless)
+        let lm: PoseLandmarker
+        try {
+          lm = await PoseLandmarker.createFromOptions(vision, {
+            baseOptions: { modelAssetPath: POSE_MODEL, delegate: 'GPU' },
+            runningMode: 'VIDEO',
+            numPoses: 1,
+          })
+        } catch {
+          lm = await PoseLandmarker.createFromOptions(vision, {
+            baseOptions: { modelAssetPath: POSE_MODEL, delegate: 'CPU' },
+            runningMode: 'VIDEO',
+            numPoses: 1,
+          })
+        }
         if (cancelled) { lm.close(); return }
         landmarkerRef.current = lm
 

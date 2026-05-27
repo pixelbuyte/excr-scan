@@ -104,6 +104,7 @@ export default function CompeteLobby() {
                 Share this code
               </p>
               <div
+                data-testid="room-code"
                 className="text-5xl font-black tracking-[0.3em]"
                 style={{ ...fontHead, color: ACCENT, textShadow: `0 0 24px ${ACCENT}99` }}
               >
