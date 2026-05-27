@@ -120,19 +120,32 @@ export default function Landing() {
             </button>
           </div>
 
-          <button
-            onClick={() => navigate('/settings')}
-            className="w-full py-2.5 rounded-xl uppercase tracking-widest text-xs
-                       active:scale-95 transition-all"
-            style={{
-              fontFamily: '"Orbitron", sans-serif',
-              color: 'rgba(255,255,255,0.3)',
-              background: 'rgba(255,255,255,0.03)',
-              border: '1px solid rgba(255,255,255,0.08)',
-            }}
-          >
-            ⚙ Settings
-          </button>
+          <div className="grid grid-cols-2 gap-2">
+            <button
+              onClick={() => navigate('/history')}
+              className="py-2.5 rounded-xl uppercase tracking-widest text-xs active:scale-95 transition-all"
+              style={{
+                fontFamily: '"Orbitron", sans-serif',
+                color: 'rgba(255,255,255,0.4)',
+                background: 'rgba(255,255,255,0.03)',
+                border: '1px solid rgba(255,255,255,0.1)',
+              }}
+            >
+              📊 History
+            </button>
+            <button
+              onClick={() => navigate('/settings')}
+              className="py-2.5 rounded-xl uppercase tracking-widest text-xs active:scale-95 transition-all"
+              style={{
+                fontFamily: '"Orbitron", sans-serif',
+                color: 'rgba(255,255,255,0.3)',
+                background: 'rgba(255,255,255,0.03)',
+                border: '1px solid rgba(255,255,255,0.08)',
+              }}
+            >
+              ⚙ Settings
+            </button>
+          </div>
         </div>
 
         <p className="text-center text-white/15 text-xs" style={{ fontFamily: '"Space Mono", monospace' }}>

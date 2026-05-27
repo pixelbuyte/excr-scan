@@ -14,6 +14,7 @@ export function useRepCounter(
   exercise: ExerciseId,
   onRep?: () => void,
   onHalfRep?: () => void,
+  downAdjust = 0,   // positive = more forgiving (less depth needed)
 ) {
   const [reps,       setReps]       = useState(0)
   const [halfReps,   setHalfReps]   = useState(0)
@@ -47,7 +48,12 @@ export function useRepCounter(
   }, [exercise])
 
   const process = useCallback((lm: NormalizedLandmark[]) => {
-    const { down, up, fullDepth, halfDown, getMetric } = REP_THRESHOLDS[exercise]
+    const base = REP_THRESHOLDS[exercise]
+    const down     = base.down + downAdjust
+    const up       = base.up
+    const fullDepth = base.fullDepth + downAdjust
+    const halfDown  = base.halfDown !== undefined ? base.halfDown + downAdjust : undefined
+    const getMetric = base.getMetric
     const raw = getMetric(lm)
 
     // Initialize smooth value at first frame to avoid large initial swing

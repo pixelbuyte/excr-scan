@@ -1,4 +1,7 @@
 import { useState, useCallback } from 'react'
+import type { AgeGroup, FitnessLevel } from '../utils/profile'
+
+export type { AgeGroup, FitnessLevel }
 
 export interface Settings {
   weight: number
@@ -8,11 +11,17 @@ export interface Settings {
   hapticFeedback: boolean
   cameraFacing: 'user' | 'environment'
   showAngles: boolean
+  ageGroup: AgeGroup
+  fitnessLevel: FitnessLevel
+  lowLightBoost: boolean   // auto-detect + boost when dark
 }
 
 const DEFAULTS: Settings = {
-  weight: 70, unit: 'metric', voiceCoach: true,
-  soundEffects: true, hapticFeedback: true, cameraFacing: 'user', showAngles: false,
+  weight: 70, unit: 'metric',
+  voiceCoach: true, soundEffects: true, hapticFeedback: true,
+  cameraFacing: 'user', showAngles: false,
+  ageGroup: 'adult', fitnessLevel: 'intermediate',
+  lowLightBoost: true,
 }
 
 const KEY = 'excrscan_settings'

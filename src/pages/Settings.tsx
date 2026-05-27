@@ -1,10 +1,13 @@
+import type { ReactNode } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useSettings } from '../hooks/useSettings'
+import { AGE_LABELS, FITNESS_LABELS, type AgeGroup, type FitnessLevel } from '../utils/profile'
+import { clearHistory } from '../utils/workoutHistory'
 
 const mono = { fontFamily: '"Space Mono", monospace' }
 const orb  = { fontFamily: '"Orbitron", sans-serif' }
 
-function Row({ label, children }: { label: string; children: React.ReactNode }) {
+function Row({ label, children }: { label: string; children: ReactNode }) {
   return (
     <div className="flex items-center justify-between py-3" style={{ borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
       <span style={{ ...mono, fontSize: 11, color: 'rgba(255,255,255,0.5)', textTransform: 'uppercase' as const, letterSpacing: 1 }}>
@@ -41,6 +44,7 @@ export default function Settings() {
     if (confirm('Clear all workout history and PBs?')) {
       localStorage.removeItem('excr_daily_pb')
       localStorage.removeItem('excr_best_streak')
+      clearHistory()
     }
   }
 
@@ -66,6 +70,42 @@ export default function Settings() {
       </div>
 
       <div className="flex-1 overflow-y-auto px-4 py-4 space-y-6 max-w-sm mx-auto w-full">
+
+        {/* Profile — affects thresholds & grade labels */}
+        <section>
+          <p style={{ ...orb, fontSize: 10, color: 'rgba(0,240,255,0.5)', letterSpacing: 2, textTransform: 'uppercase', marginBottom: 8 }}>Profile</p>
+          <div className="rounded-2xl px-3" style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.07)' }}>
+            <Row label="Age Group">
+              <div className="flex rounded-lg overflow-hidden" style={{ border: '1px solid rgba(0,240,255,0.2)' }}>
+                {(Object.keys(AGE_LABELS) as AgeGroup[]).map(g => (
+                  <button key={g} onClick={() => update('ageGroup', g)} className="px-2 py-1.5 transition-all"
+                    style={{ ...mono, fontSize: 9, textTransform: 'uppercase',
+                      background: settings.ageGroup === g ? '#00f0ff' : 'transparent',
+                      color: settings.ageGroup === g ? '#000' : 'rgba(255,255,255,0.4)',
+                      fontWeight: settings.ageGroup === g ? 700 : 400 }}>
+                    {g === 'youth' ? 'Youth' : g === 'adult' ? 'Adult' : 'Senior'}
+                  </button>
+                ))}
+              </div>
+            </Row>
+            <Row label="Fitness Level">
+              <div className="flex rounded-lg overflow-hidden" style={{ border: '1px solid rgba(0,240,255,0.2)' }}>
+                {(Object.keys(FITNESS_LABELS) as FitnessLevel[]).map(f => (
+                  <button key={f} onClick={() => update('fitnessLevel', f)} className="px-2 py-1.5 transition-all"
+                    style={{ ...mono, fontSize: 9, textTransform: 'uppercase',
+                      background: settings.fitnessLevel === f ? '#00f0ff' : 'transparent',
+                      color: settings.fitnessLevel === f ? '#000' : 'rgba(255,255,255,0.4)',
+                      fontWeight: settings.fitnessLevel === f ? 700 : 400 }}>
+                    {f === 'beginner' ? 'Beginner' : f === 'intermediate' ? 'Inter.' : 'Advanced'}
+                  </button>
+                ))}
+              </div>
+            </Row>
+          </div>
+          <p style={{ ...mono, fontSize: 9, color: 'rgba(255,255,255,0.2)', marginTop: 6 }}>
+            Profile adjusts rep depth thresholds and grade labels for your ability level.
+          </p>
+        </section>
 
         {/* Body */}
         <section>
@@ -132,6 +172,9 @@ export default function Settings() {
           <div className="rounded-2xl px-3" style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.07)' }}>
             <Row label="Show Angles">
               <Toggle on={settings.showAngles} onToggle={() => update('showAngles', !settings.showAngles)} />
+            </Row>
+            <Row label="Low Light Boost">
+              <Toggle on={settings.lowLightBoost} onToggle={() => update('lowLightBoost', !settings.lowLightBoost)} />
             </Row>
             <Row label="Camera">
               <div className="flex rounded-lg overflow-hidden" style={{ border: '1px solid rgba(0,240,255,0.2)' }}>

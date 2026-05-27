@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, useCallback } from 'react'
+import { useEffect, useRef, useState, useCallback, useMemo } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import {
   PoseLandmarker, FilesetResolver, DrawingUtils,
@@ -16,6 +16,8 @@ import { useStreak, streakGlow }           from '../hooks/useStreak'
 import { useVoiceCoach }                   from '../hooks/useVoiceCoach'
 import { useFitness }                      from '../hooks/useFitness'
 import { useSettings }                     from '../hooks/useSettings'
+import { getDownAdjust }                   from '../utils/profile'
+import { saveSession }                     from '../utils/workoutHistory'
 import { BatteryMeter }                    from '../components/BatteryMeter'
 import { SessionSummary }                  from '../components/SessionSummary'
 import { ScanlineFx }                      from '../components/ScanlineFx'
@@ -43,6 +45,17 @@ export default function Scanner() {
 
   const { settings } = useSettings()
 
+  // Adaptive threshold offset based on user profile
+  const downAdjust = useMemo(
+    () => getDownAdjust(settings.ageGroup, settings.fitnessLevel),
+    [settings.ageGroup, settings.fitnessLevel],
+  )
+
+  // ── Dark / low-light detection ────────────────────────────────────────────
+  const [isDark,       setIsDark]       = useState(false)
+  const sampleCanvasRef = useRef<HTMLCanvasElement | null>(null)
+  const frameCountRef   = useRef(0)
+
   // ── Camera ────────────────────────────────────────────────────────────────
   const videoRef      = useRef<HTMLVideoElement>(null)
   const canvasRef     = useRef<HTMLCanvasElement>(null)
@@ -69,6 +82,8 @@ export default function Scanner() {
   const flashTimerRef   = useRef<ReturnType<typeof setTimeout> | null>(null)
   const mirrorRef       = useRef(mirrorMode)
   mirrorRef.current     = mirrorMode
+  const lowLightRef     = useRef(settings.lowLightBoost)
+  lowLightRef.current   = settings.lowLightBoost
 
   // ── Session ───────────────────────────────────────────────────────────────
   const [elapsed,      setElapsed]      = useState(0)
@@ -104,7 +119,7 @@ export default function Scanner() {
   }, [settings.hapticFeedback])
 
   const { reps, halfReps, depth, repState, isStationary, process: processRep, reset: resetRep } =
-    useRepCounter(exercise, handleRep, handleHalfRep)
+    useRepCounter(exercise, handleRep, handleHalfRep, downAdjust)
 
   const fitness = useFitness(exercise, reps, settings.weight)
 
@@ -241,6 +256,23 @@ export default function Scanner() {
         const result = landmarkerRef.current.detectForVideo(video, performance.now())
         ctx.clearRect(0, 0, canvas.width, canvas.height)
 
+        // ── Low-light sampling every 30 frames ───────────────────────────
+        frameCountRef.current++
+        if (frameCountRef.current % 30 === 0 && lowLightRef.current) {
+          if (!sampleCanvasRef.current) {
+            sampleCanvasRef.current = document.createElement('canvas')
+            sampleCanvasRef.current.width  = 8
+            sampleCanvasRef.current.height = 8
+          }
+          const sc = sampleCanvasRef.current.getContext('2d')!
+          sc.drawImage(video, 0, 0, 8, 8)
+          const px = sc.getImageData(0, 0, 8, 8).data
+          let lum = 0
+          for (let i = 0; i < px.length; i += 4)
+            lum += px[i] * 0.299 + px[i + 1] * 0.587 + px[i + 2] * 0.114
+          setIsDark((lum / 64) < 40)
+        }
+
         if (result.landmarks.length > 0) {
           const lm: NormalizedLandmark[] = result.landmarks[0]
           const bodyLm = lm.slice(BODY_START)
@@ -310,7 +342,23 @@ export default function Scanner() {
     streakRef.current.reset()
   }, [resetRep])
 
-  function handleEnd() { setShowSummary(true) }
+  function handleEnd() {
+    // Persist session before showing summary
+    if (reps > 0 || elapsed > 10) {
+      saveSession({
+        date: new Date().toISOString(),
+        exercise,
+        reps,
+        halfReps,
+        durationSeconds: elapsed,
+        avgFormScore: avgScore,
+        calories: fitness.calories,
+        bestStreak: streak.bestStreak,
+        volume: fitness.volume,
+      })
+    }
+    setShowSummary(true)
+  }
 
   function handleSummaryClose() {
     setShowSummary(false)
@@ -421,7 +469,11 @@ export default function Scanner() {
         )}
 
         <video ref={videoRef} className="w-full h-full object-cover" playsInline muted
-          style={{ display: status === 'ready' ? 'block' : 'none', transform }} />
+          style={{
+            display: status === 'ready' ? 'block' : 'none',
+            transform,
+            filter: isDark && settings.lowLightBoost ? 'brightness(2.4) contrast(1.3) saturate(1.4)' : 'none',
+          }} />
         <canvas ref={canvasRef} className="absolute inset-0 w-full h-full object-cover pointer-events-none z-[1]"
           style={{ display: status === 'ready' ? 'block' : 'none', transform }} />
 
@@ -528,6 +580,22 @@ export default function Scanner() {
               volume={fitness.volume}
               unit={settings.unit}
             />
+
+            {/* Low-light badge */}
+            {isDark && settings.lowLightBoost && (
+              <div
+                className="absolute top-3 z-[3] px-2.5 py-1 rounded-lg"
+                style={{
+                  left: '50%', transform: 'translateX(-50%)',
+                  fontFamily: '"Space Mono", monospace', fontSize: 9,
+                  color: '#ffd700', background: 'rgba(0,0,0,0.7)',
+                  border: '1px solid rgba(255,215,0,0.4)',
+                  marginTop: 36,
+                }}
+              >
+                🌙 Low Light Boost
+              </div>
+            )}
 
             {/* Rest indicator */}
             {isResting && (
@@ -678,6 +746,8 @@ export default function Scanner() {
           volume={fitness.volume}
           unit={settings.unit}
           repRecords={repRecordsRef.current}
+          ageGroup={settings.ageGroup}
+          fitnessLevel={settings.fitnessLevel}
           onClose={handleSummaryClose}
         />
       )}

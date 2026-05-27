@@ -4,6 +4,7 @@ import Scanner        from './pages/Scanner'
 import CompeteLobby   from './pages/CompeteLobby'
 import Settings       from './pages/Settings'
 import DailyChallenge from './pages/DailyChallenge'
+import History        from './pages/History'
 import './index.css'
 
 export default function App() {
@@ -14,6 +15,7 @@ export default function App() {
       <Route path="/compete" element={<CompeteLobby />}   />
       <Route path="/settings" element={<Settings />}      />
       <Route path="/daily"   element={<DailyChallenge />} />
+      <Route path="/history" element={<History />}        />
     </Routes>
   )
 }

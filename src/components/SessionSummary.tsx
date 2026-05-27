@@ -1,3 +1,5 @@
+import { gradeForScore, type AgeGroup, type FitnessLevel } from '../utils/profile'
+
 interface RepRecord { score: number; depth: number }
 
 interface Props {
@@ -11,18 +13,14 @@ interface Props {
   volume: number
   unit: 'metric' | 'imperial'
   repRecords: RepRecord[]
+  ageGroup?: AgeGroup
+  fitnessLevel?: FitnessLevel
   onClose: () => void
 }
 
 function fmt(s: number) {
   return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`
 }
-
-const grade = (s: number) =>
-  s >= 85 ? { label: 'Elite',         c: '#39ff14' }
-  : s >= 70 ? { label: 'Good',         c: '#00f0ff' }
-  : s >= 50 ? { label: 'Fair',         c: '#ffd700' }
-  : { label: 'Keep Training',          c: '#ff4d4d' }
 
 // Simple inline SVG bar chart of form scores per rep
 function FormChart({ records }: { records: RepRecord[] }) {
@@ -54,9 +52,9 @@ function FormChart({ records }: { records: RepRecord[] }) {
 
 export function SessionSummary({
   reps, halfReps, avgFormScore, elapsedSeconds, bestStreak,
-  calories, tut, volume, unit, repRecords, onClose,
+  calories, tut, volume, unit, repRecords, ageGroup, fitnessLevel, onClose,
 }: Props) {
-  const g       = grade(avgFormScore)
+  const g = gradeForScore(avgFormScore, ageGroup ?? 'adult', fitnessLevel ?? 'intermediate')
   const volLbl  = unit === 'imperial' ? `${Math.round(volume * 2.205)} lbs` : `${volume} kg`
   const tutFmt  = tut >= 60 ? `${Math.floor(tut/60)}m ${tut%60}s` : `${tut}s`
 
