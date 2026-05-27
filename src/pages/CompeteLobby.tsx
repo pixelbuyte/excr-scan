@@ -6,7 +6,7 @@ import { glass, glassTint, fontHead, fontMono, softGlow, ACCENT, ACCENT_GREEN } 
 
 export default function CompeteLobby() {
   const navigate  = useNavigate()
-  const { roomCode, connected, waiting, error, createRoom, joinRoom, disconnect } = useCompete()
+  const { roomCode, connected, waiting, status, statusText, error, createRoom, joinRoom, disconnect } = useCompete()
 
   const [mode,      setMode]      = useState<'choose' | 'host' | 'join'>('choose')
   const [joinCode,  setJoinCode]  = useState('')
@@ -109,14 +109,15 @@ export default function CompeteLobby() {
               >
                 {roomCode}
               </div>
-              <p className="text-white/40 text-xs" style={fontMono}>
-                {waiting ? 'Waiting for opponent to join…' : 'Connected!'}
+              <p className="text-white/45 text-xs" style={fontMono}>
+                {statusText || (waiting ? 'Waiting for opponent…' : 'Connected!')}
               </p>
             </div>
 
-            {waiting && (
-              <div className="flex justify-center">
-                <div className="w-6 h-6 border-2 border-white/20 border-t-cyan-400 rounded-full animate-spin" />
+            {(status === 'waiting' || status === 'pairing' || status === 'server') && (
+              <div className="flex items-center justify-center gap-2">
+                <div className="w-5 h-5 border-2 border-white/20 border-t-cyan-400 rounded-full animate-spin" />
+                <span className="text-white/40 text-xs" style={fontMono}>{statusText}</span>
               </div>
             )}
           </div>
@@ -140,6 +141,13 @@ export default function CompeteLobby() {
             >
               {loading ? 'Connecting…' : 'Join'}
             </button>
+
+            {(status === 'server' || status === 'pairing') && (
+              <div className="flex items-center justify-center gap-2">
+                <div className="w-5 h-5 border-2 border-white/20 border-t-cyan-400 rounded-full animate-spin" />
+                <span className="text-white/40 text-xs" style={fontMono}>{statusText}</span>
+              </div>
+            )}
           </div>
         )}
 
