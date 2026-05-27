@@ -88,19 +88,50 @@ export default function Landing() {
             Start Training
           </button>
 
+          <div className="grid grid-cols-2 gap-2">
+            <button
+              onClick={() => navigate('/compete')}
+              className="py-3 rounded-xl font-bold uppercase tracking-widest text-sm
+                         active:scale-95 transition-all"
+              style={{
+                fontFamily: '"Orbitron", sans-serif',
+                color: '#39ff14',
+                background: 'rgba(57,255,20,0.06)',
+                border: '1px solid rgba(57,255,20,0.3)',
+                boxShadow: '0 0 12px rgba(57,255,20,0.1)',
+              }}
+            >
+              ⚡ Compete
+            </button>
+
+            <button
+              onClick={() => navigate('/daily')}
+              className="py-3 rounded-xl font-bold uppercase tracking-widest text-sm
+                         active:scale-95 transition-all"
+              style={{
+                fontFamily: '"Orbitron", sans-serif',
+                color: '#ffd700',
+                background: 'rgba(255,215,0,0.06)',
+                border: '1px solid rgba(255,215,0,0.3)',
+                boxShadow: '0 0 12px rgba(255,215,0,0.1)',
+              }}
+            >
+              🔥 Daily
+            </button>
+          </div>
+
           <button
-            onClick={() => navigate('/compete')}
-            className="w-full py-3 rounded-xl font-bold uppercase tracking-widest text-sm
+            onClick={() => navigate('/settings')}
+            className="w-full py-2.5 rounded-xl uppercase tracking-widest text-xs
                        active:scale-95 transition-all"
             style={{
               fontFamily: '"Orbitron", sans-serif',
-              color: '#39ff14',
-              background: 'rgba(57,255,20,0.06)',
-              border: '1px solid rgba(57,255,20,0.3)',
-              boxShadow: '0 0 12px rgba(57,255,20,0.1)',
+              color: 'rgba(255,255,255,0.3)',
+              background: 'rgba(255,255,255,0.03)',
+              border: '1px solid rgba(255,255,255,0.08)',
             }}
           >
-            ⚡ Compete
+            ⚙ Settings
           </button>
         </div>
 
