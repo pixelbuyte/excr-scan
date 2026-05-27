@@ -94,3 +94,22 @@
 .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
 
 * { -webkit-tap-highlight-color: transparent; }
+
+/* ── Entry choreography — heavy fade-up with blur ── */
+@keyframes rise {
+  0%   { opacity: 0; transform: translateY(40px); filter: blur(12px); }
+  100% { opacity: 1; transform: translateY(0);    filter: blur(0); }
+}
+
+.rise {
+  opacity: 0;
+  animation: rise 0.9s cubic-bezier(0.32, 0.72, 0, 1) forwards;
+}
+
+/* Magnetic CTA — internal icon kinetic tension */
+.magnetic .magnet-icon {
+  transition: transform 0.5s cubic-bezier(0.32, 0.72, 0, 1);
+}
+.magnetic:hover .magnet-icon {
+  transform: translate(3px, -2px) scale(1.08);
+}

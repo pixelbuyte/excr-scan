@@ -1,105 +1,161 @@
 import { useNavigate } from 'react-router-dom'
 import { Ambient } from '../components/Ambient'
-import { glass, glassTint, fontHead, fontMono, softGlow, ACCENT, ACCENT_GREEN, ACCENT_GOLD } from '../styles/glass'
+import { Reveal } from '../components/Reveal'
+import {
+  bezelShell, bezelCore, eyebrow,
+  fontHead, fontBody, fontMono, softGlow, EASE,
+  ACCENT, ACCENT_GREEN, ACCENT_GOLD, ACCENT_VIOLET,
+} from '../styles/glass'
 
 const FEATURES = [
-  { icon: '🦴', label: 'Pose Detection',  desc: 'Full-body skeleton' },
-  { icon: '📐', label: 'Form Analysis',   desc: 'Live joint angles' },
-  { icon: '🔢', label: 'Rep Counter',     desc: 'Zero false counts' },
-  { icon: '⚔️', label: 'Compete',         desc: 'Challenge a friend' },
+  { icon: '◴', label: 'Real-time Pose',   desc: 'Full-body skeleton tracking at 30fps, fully on-device', big: true,  tint: ACCENT },
+  { icon: '∠', label: 'Form Analysis',    desc: 'Live joint angles',  big: false, tint: ACCENT_VIOLET },
+  { icon: '#', label: 'Rep Counter',      desc: 'Zero false counts',  big: false, tint: ACCENT_GREEN },
 ]
+
+// Button-in-button trailing icon — nested circle, magnetic on hover
+function ArrowChip({ dark = false }: { dark?: boolean }) {
+  return (
+    <span
+      className="magnet-icon w-8 h-8 rounded-full flex items-center justify-center"
+      style={{ background: dark ? 'rgba(0,0,0,0.12)' : 'rgba(255,255,255,0.12)' }}
+    >
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2">
+        <path strokeLinecap="round" strokeLinejoin="round" d="M7 17 17 7M9 7h8v8" />
+      </svg>
+    </span>
+  )
+}
+
+function Tile({ icon, label, desc, tint }: { icon: string; label: string; desc: string; tint: string }) {
+  return (
+    <div className="h-full" style={bezelShell(28)}>
+      <div className="h-full p-5 flex flex-col justify-between" style={bezelCore(28, tint)}>
+        <div
+          className="w-11 h-11 rounded-2xl flex items-center justify-center text-xl"
+          style={{ background: `${tint}1f`, border: `1px solid ${tint}33`, color: tint }}
+        >
+          {icon}
+        </div>
+        <div className="mt-4">
+          <div className="text-[15px] font-semibold text-white" style={fontBody}>{label}</div>
+          <div className="text-xs text-white/45 mt-1 leading-snug" style={fontBody}>{desc}</div>
+        </div>
+      </div>
+    </div>
+  )
+}
 
 export default function Landing() {
   const navigate = useNavigate()
 
+  const secondary = [
+    { to: '/compete',  icon: '⚔', label: 'Compete',  tint: ACCENT_GREEN  },
+    { to: '/daily',    icon: '◎', label: 'Daily',    tint: ACCENT_GOLD   },
+    { to: '/history',  icon: '◷', label: 'History',  tint: ACCENT_VIOLET },
+    { to: '/settings', icon: '⚙', label: 'Settings', tint: ACCENT        },
+  ]
+
   return (
-    <div className="min-h-screen relative flex flex-col items-center justify-center px-5 py-8" style={{ color: '#fff' }}>
+    <div className="min-h-[100dvh] relative flex flex-col justify-center px-5 py-16" style={{ color: '#fff' }}>
       <Ambient />
 
-      <div className="relative z-10 w-full max-w-sm space-y-7">
+      <div className="relative w-full max-w-md mx-auto">
 
-        {/* Logo + title */}
-        <div className="text-center space-y-4">
-          <div
-            className="relative inline-flex items-center justify-center w-24 h-24 rounded-[28px] overflow-hidden sheen"
-            style={glassTint(ACCENT)}
-          >
-            <svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke={ACCENT} strokeWidth="1.5" style={{ filter: `drop-shadow(0 0 8px ${ACCENT})` }}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M17.25 6.75 22.5 12l-5.25 5.25m-10.5 0L1.5 12l5.25-5.25m7.5-3-4.5 16.5" />
-            </svg>
-          </div>
-
-          <div>
-            <h1
-              className="text-5xl font-black tracking-tight"
-              style={{ ...fontHead, background: `linear-gradient(135deg, #fff 20%, ${ACCENT} 100%)`, WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text' }}
+        {/* Hero */}
+        <Reveal>
+          <div className="flex items-center justify-between mb-7">
+            <div
+              className="w-12 h-12 rounded-2xl flex items-center justify-center"
+              style={{ background: `${ACCENT}1f`, border: `1px solid ${ACCENT}38` }}
             >
-              ExcrScan
-            </h1>
-            <p className="mt-2 text-sm tracking-widest uppercase" style={{ ...fontMono, color: 'rgba(255,255,255,0.4)' }}>
-              Real-time form correction
-            </p>
-          </div>
-        </div>
-
-        {/* Feature grid */}
-        <div className="grid grid-cols-2 gap-3">
-          {FEATURES.map(({ icon, label, desc }) => (
-            <div key={label} className="rounded-3xl p-4" style={glass}>
-              <div className="text-2xl mb-1.5">{icon}</div>
-              <div className="text-sm font-bold text-white/90" style={fontHead}>{label}</div>
-              <div className="text-xs text-white/40 mt-0.5" style={fontMono}>{desc}</div>
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={ACCENT} strokeWidth="1.6">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M17.25 6.75 22.5 12l-5.25 5.25m-10.5 0L1.5 12l5.25-5.25m7.5-3-4.5 16.5" />
+              </svg>
             </div>
-          ))}
-        </div>
+            <span style={eyebrow}>On-device · Private</span>
+          </div>
+        </Reveal>
 
-        {/* Primary CTA */}
-        <button
-          onClick={() => navigate('/scan')}
-          className="relative w-full py-4 rounded-3xl font-black uppercase tracking-widest text-lg overflow-hidden sheen active:scale-[0.97] transition-transform"
-          style={{ ...fontHead, color: '#04121a', background: `linear-gradient(135deg, ${ACCENT}, ${ACCENT_GREEN})`, boxShadow: softGlow(ACCENT) }}
-        >
-          Start Training
-        </button>
+        <Reveal delay={80}>
+          <h1
+            className="leading-[0.95] tracking-tight"
+            style={{ ...fontHead, fontSize: 'clamp(48px, 14vw, 68px)', fontWeight: 700 }}
+          >
+            Train with
+            <br />
+            <span style={{ background: `linear-gradient(110deg, ${ACCENT} 10%, ${ACCENT_VIOLET} 90%)`, WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text' }}>
+              precision.
+            </span>
+          </h1>
+        </Reveal>
 
-        {/* Secondary actions */}
-        <div className="grid grid-cols-2 gap-3">
-          <button
-            onClick={() => navigate('/compete')}
-            className="py-3.5 rounded-2xl font-bold uppercase tracking-wider text-sm active:scale-[0.97] transition-transform"
-            style={{ ...fontHead, color: ACCENT_GREEN, ...glassTint(ACCENT_GREEN) }}
-          >
-            ⚔️ Compete
-          </button>
-          <button
-            onClick={() => navigate('/daily')}
-            className="py-3.5 rounded-2xl font-bold uppercase tracking-wider text-sm active:scale-[0.97] transition-transform"
-            style={{ ...fontHead, color: ACCENT_GOLD, ...glassTint(ACCENT_GOLD) }}
-          >
-            🔥 Daily
-          </button>
-        </div>
+        <Reveal delay={140}>
+          <p className="mt-4 text-[15px] leading-relaxed text-white/55 max-w-xs" style={fontBody}>
+            Your camera becomes a personal form coach. Real-time feedback on every rep — no wearables, no cloud.
+          </p>
+        </Reveal>
 
-        <div className="grid grid-cols-2 gap-3">
-          <button
-            onClick={() => navigate('/history')}
-            className="py-3 rounded-2xl uppercase tracking-wider text-xs active:scale-[0.97] transition-transform"
-            style={{ ...fontHead, color: 'rgba(255,255,255,0.6)', ...glass }}
-          >
-            📊 History
-          </button>
-          <button
-            onClick={() => navigate('/settings')}
-            className="py-3 rounded-2xl uppercase tracking-wider text-xs active:scale-[0.97] transition-transform"
-            style={{ ...fontHead, color: 'rgba(255,255,255,0.6)', ...glass }}
-          >
-            ⚙ Settings
-          </button>
-        </div>
+        {/* Bento feature grid */}
+        <Reveal delay={200}>
+          <div className="grid grid-cols-2 gap-3 mt-9">
+            <div className="col-span-2">
+              <Tile {...FEATURES[0]} />
+            </div>
+            <Tile {...FEATURES[1]} />
+            <Tile {...FEATURES[2]} />
+          </div>
+        </Reveal>
 
-        <p className="text-center text-white/25 text-xs" style={fontMono}>
-          100% local · no data leaves device
-        </p>
+        {/* Primary CTA — magnetic, button-in-button */}
+        <Reveal delay={280}>
+          <button
+            onClick={() => navigate('/scan')}
+            className="magnetic group w-full mt-7 pl-7 pr-3 py-3 rounded-full flex items-center justify-between active:scale-[0.98]"
+            style={{
+              ...fontBody, fontWeight: 700, fontSize: 17, color: '#04201c',
+              background: `linear-gradient(110deg, ${ACCENT}, ${ACCENT_GREEN})`,
+              boxShadow: softGlow(ACCENT),
+              transition: `transform 0.5s ${EASE}`,
+            }}
+          >
+            Start Training
+            <ArrowChip dark />
+          </button>
+        </Reveal>
+
+        {/* Secondary — double-bezel pills */}
+        <Reveal delay={340}>
+          <div className="grid grid-cols-2 gap-3 mt-3">
+            {secondary.map(({ to, icon, label, tint }) => (
+              <button
+                key={to}
+                onClick={() => navigate(to)}
+                className="group active:scale-[0.98]"
+                style={{ ...bezelShell(20), transition: `transform 0.4s ${EASE}` }}
+              >
+                <div
+                  className="flex items-center gap-2.5 px-4 py-3"
+                  style={bezelCore(20)}
+                >
+                  <span
+                    className="w-7 h-7 rounded-full flex items-center justify-center text-sm shrink-0"
+                    style={{ background: `${tint}1f`, color: tint }}
+                  >
+                    {icon}
+                  </span>
+                  <span className="text-sm font-medium text-white/85" style={fontBody}>{label}</span>
+                </div>
+              </button>
+            ))}
+          </div>
+        </Reveal>
+
+        <Reveal delay={400}>
+          <p className="text-center text-white/25 text-xs mt-8 tracking-wide" style={fontMono}>
+            100% local · no data leaves device
+          </p>
+        </Reveal>
       </div>
     </div>
   )

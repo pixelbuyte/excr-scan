@@ -34,7 +34,7 @@ function Row({ label, value, sub }: { label: string; value: string; sub?: ReactN
         {label}
       </span>
       <div className="flex flex-col items-end gap-0.5">
-        <span style={{ fontFamily: '"Orbitron", sans-serif', fontSize: 12, color: '#22d3ee', fontWeight: 700 }}>
+        <span style={{ fontFamily: '"Clash Display", sans-serif', fontSize: 12, color: '#22d3ee', fontWeight: 700 }}>
           {value}
         </span>
         {sub}

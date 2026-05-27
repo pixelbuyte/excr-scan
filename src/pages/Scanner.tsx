@@ -459,7 +459,7 @@ export default function Scanner() {
 
         {status === 'error' && (
           <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 px-8 text-center z-20">
-            <span style={{ fontFamily: '"Orbitron", sans-serif', color: '#ff4d4d', fontWeight: 700 }}>Camera Error</span>
+            <span style={{ fontFamily: fontHead.fontFamily, color: '#ff4d4d', fontWeight: 700 }}>Camera Error</span>
             <span style={{ fontFamily: '"Space Mono", monospace', fontSize: 12, color: 'rgba(255,255,255,0.3)' }}>{errorMsg}</span>
             <button onClick={() => navigate('/')} className="mt-2 px-4 py-2 rounded bg-white/10 text-sm" style={{ fontFamily: '"Space Mono", monospace' }}>
               ← Back
@@ -629,7 +629,7 @@ export default function Scanner() {
                 style={{
                   top: '25%', left: '50%', transform: 'translateX(-50%)',
                   animation: 'winner-pop 0.4s ease-out',
-                  fontFamily: '"Orbitron", sans-serif', fontSize: 22, fontWeight: 900,
+                  fontFamily: fontHead.fontFamily, fontSize: 22, fontWeight: 900,
                   color: '#ffd700', textShadow: '0 0 30px rgba(255,215,0,0.8)',
                   whiteSpace: 'nowrap',
                 }}
@@ -662,7 +662,7 @@ export default function Scanner() {
                 style={{ animation: 'nice-flash 0.95s ease-out forwards' }}
               >
                 <span style={{
-                  fontFamily: '"Orbitron", sans-serif', fontSize: 64, fontWeight: 900,
+                  fontFamily: fontHead.fontFamily, fontSize: 64, fontWeight: 900,
                   color: ACCENT_GREEN, textShadow: '0 0 30px rgba(74,222,128,0.9), 0 0 70px rgba(74,222,128,0.5)',
                 }}>
                   NICE! 💪
