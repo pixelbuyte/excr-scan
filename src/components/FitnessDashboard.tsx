@@ -11,7 +11,7 @@ interface Props {
 }
 
 const ZONE_COLOR: Record<string, string> = {
-  Rest: '#888', 'Fat Burn': '#39ff14', Cardio: '#ffa500', Peak: '#ff4d4d',
+  Rest: '#888', 'Fat Burn': '#4ade80', Cardio: '#fbbf24', Peak: '#f87171',
 }
 
 function Sparkline({ data, w = 80, h = 24 }: { data: number[]; w?: number; h?: number }) {
@@ -22,7 +22,7 @@ function Sparkline({ data, w = 80, h = 24 }: { data: number[]; w?: number; h?: n
   ).join(' ')
   return (
     <svg width={w} height={h} style={{ overflow: 'visible' }}>
-      <polyline points={pts} fill="none" stroke="#00f0ff" strokeWidth="1.5" />
+      <polyline points={pts} fill="none" stroke="#22d3ee" strokeWidth="1.5" />
     </svg>
   )
 }
@@ -34,7 +34,7 @@ function Row({ label, value, sub }: { label: string; value: string; sub?: ReactN
         {label}
       </span>
       <div className="flex flex-col items-end gap-0.5">
-        <span style={{ fontFamily: '"Orbitron", sans-serif', fontSize: 12, color: '#00f0ff', fontWeight: 700 }}>
+        <span style={{ fontFamily: '"Orbitron", sans-serif', fontSize: 12, color: '#22d3ee', fontWeight: 700 }}>
           {value}
         </span>
         {sub}
@@ -49,8 +49,14 @@ export function FitnessDashboard({ calories, tut, avgPace, paceHistory, hrZone, 
 
   return (
     <div
-      className="absolute right-0 top-0 bottom-0 flex flex-col justify-center px-2 py-3 z-[2]"
-      style={{ width: 110, background: 'rgba(0,0,0,0.75)', borderLeft: '1px solid rgba(0,240,255,0.1)' }}
+      className="absolute right-0 top-0 bottom-0 flex flex-col justify-center px-2.5 py-3 z-[2]"
+      style={{
+        width: 112,
+        background: 'linear-gradient(135deg, rgba(20,24,40,0.45), rgba(10,12,22,0.25))',
+        backdropFilter: 'blur(16px) saturate(130%)',
+        WebkitBackdropFilter: 'blur(16px) saturate(130%)',
+        borderLeft: '1px solid rgba(255,255,255,0.10)',
+      }}
     >
       <div className="space-y-0">
         <Row label="Cals"  value={`${calories} kcal`} />

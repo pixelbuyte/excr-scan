@@ -3,9 +3,11 @@ import { useNavigate } from 'react-router-dom'
 import { useSettings } from '../hooks/useSettings'
 import { AGE_LABELS, FITNESS_LABELS, type AgeGroup, type FitnessLevel } from '../utils/profile'
 import { clearHistory } from '../utils/workoutHistory'
+import { Ambient } from '../components/Ambient'
+import { glass, glassPill, fontHead, fontMono, ACCENT } from '../styles/glass'
 
-const mono = { fontFamily: '"Space Mono", monospace' }
-const orb  = { fontFamily: '"Orbitron", sans-serif' }
+const mono = fontMono
+const orb  = fontHead
 
 function Row({ label, children }: { label: string; children: ReactNode }) {
   return (
@@ -24,8 +26,8 @@ function Toggle({ on, onToggle }: { on: boolean; onToggle: () => void }) {
       onClick={onToggle}
       className="relative w-12 h-6 rounded-full transition-all active:scale-95"
       style={{
-        background: on ? '#00f0ff' : 'rgba(255,255,255,0.1)',
-        boxShadow: on ? '0 0 10px rgba(0,240,255,0.4)' : 'none',
+        background: on ? ACCENT : 'rgba(255,255,255,0.1)',
+        boxShadow: on ? '0 0 10px rgba(34,211,238,0.45)' : 'none',
       }}
     >
       <span
@@ -49,38 +51,36 @@ export default function Settings() {
   }
 
   return (
-    <div className="min-h-screen flex flex-col" style={{ background: '#0a0a0a', color: '#fff' }}>
+    <div className="min-h-screen flex flex-col relative" style={{ color: '#fff' }}>
+      <Ambient />
       {/* Header */}
-      <div
-        className="flex items-center gap-3 px-4 py-4"
-        style={{ borderBottom: '1px solid rgba(0,240,255,0.15)' }}
-      >
+      <div className="relative z-10 flex items-center gap-3 px-4 py-4">
         <button
           onClick={() => navigate(-1)}
-          className="w-9 h-9 rounded-xl flex items-center justify-center active:scale-90 transition-all"
-          style={{ background: 'rgba(0,240,255,0.08)', border: '1px solid rgba(0,240,255,0.2)' }}
+          className="w-9 h-9 rounded-full flex items-center justify-center active:scale-90 transition-transform"
+          style={{ ...glassPill, color: ACCENT }}
         >
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#00f0ff" strokeWidth="2">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={ACCENT} strokeWidth="2">
             <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
           </svg>
         </button>
-        <h1 style={{ ...orb, fontSize: 16, fontWeight: 900, color: '#00f0ff', letterSpacing: 3, textTransform: 'uppercase' }}>
+        <h1 style={{ ...orb, fontSize: 16, fontWeight: 900, color: '#fff', letterSpacing: 3, textTransform: 'uppercase' }}>
           Settings
         </h1>
       </div>
 
-      <div className="flex-1 overflow-y-auto px-4 py-4 space-y-6 max-w-sm mx-auto w-full">
+      <div className="relative z-10 flex-1 overflow-y-auto px-4 py-4 space-y-6 max-w-sm mx-auto w-full">
 
         {/* Profile — affects thresholds & grade labels */}
         <section>
-          <p style={{ ...orb, fontSize: 10, color: 'rgba(0,240,255,0.5)', letterSpacing: 2, textTransform: 'uppercase', marginBottom: 8 }}>Profile</p>
-          <div className="rounded-2xl px-3" style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.07)' }}>
+          <p style={{ ...orb, fontSize: 10, color: 'rgba(34,211,238,0.6)', letterSpacing: 2, textTransform: 'uppercase', marginBottom: 8 }}>Profile</p>
+          <div className="rounded-3xl px-4" style={glass}>
             <Row label="Age Group">
-              <div className="flex rounded-lg overflow-hidden" style={{ border: '1px solid rgba(0,240,255,0.2)' }}>
+              <div className="flex rounded-lg overflow-hidden" style={{ border: '1px solid rgba(255,255,255,0.14)' }}>
                 {(Object.keys(AGE_LABELS) as AgeGroup[]).map(g => (
                   <button key={g} onClick={() => update('ageGroup', g)} className="px-2 py-1.5 transition-all"
                     style={{ ...mono, fontSize: 9, textTransform: 'uppercase',
-                      background: settings.ageGroup === g ? '#00f0ff' : 'transparent',
+                      background: settings.ageGroup === g ? ACCENT : 'transparent',
                       color: settings.ageGroup === g ? '#000' : 'rgba(255,255,255,0.4)',
                       fontWeight: settings.ageGroup === g ? 700 : 400 }}>
                     {g === 'youth' ? 'Youth' : g === 'adult' ? 'Adult' : 'Senior'}
@@ -89,11 +89,11 @@ export default function Settings() {
               </div>
             </Row>
             <Row label="Fitness Level">
-              <div className="flex rounded-lg overflow-hidden" style={{ border: '1px solid rgba(0,240,255,0.2)' }}>
+              <div className="flex rounded-lg overflow-hidden" style={{ border: '1px solid rgba(255,255,255,0.14)' }}>
                 {(Object.keys(FITNESS_LABELS) as FitnessLevel[]).map(f => (
                   <button key={f} onClick={() => update('fitnessLevel', f)} className="px-2 py-1.5 transition-all"
                     style={{ ...mono, fontSize: 9, textTransform: 'uppercase',
-                      background: settings.fitnessLevel === f ? '#00f0ff' : 'transparent',
+                      background: settings.fitnessLevel === f ? ACCENT : 'transparent',
                       color: settings.fitnessLevel === f ? '#000' : 'rgba(255,255,255,0.4)',
                       fontWeight: settings.fitnessLevel === f ? 700 : 400 }}>
                     {f === 'beginner' ? 'Beginner' : f === 'intermediate' ? 'Inter.' : 'Advanced'}
@@ -109,27 +109,27 @@ export default function Settings() {
 
         {/* Body */}
         <section>
-          <p style={{ ...orb, fontSize: 10, color: 'rgba(0,240,255,0.5)', letterSpacing: 2, textTransform: 'uppercase', marginBottom: 8 }}>Body</p>
-          <div className="rounded-2xl px-3" style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.07)' }}>
+          <p style={{ ...orb, fontSize: 10, color: 'rgba(34,211,238,0.6)', letterSpacing: 2, textTransform: 'uppercase', marginBottom: 8 }}>Body</p>
+          <div className="rounded-3xl px-4" style={glass}>
             <Row label="Weight (kg)">
               <div className="flex items-center gap-2">
                 <button
                   onClick={() => update('weight', Math.max(30, settings.weight - 1))}
                   className="w-8 h-8 rounded-lg flex items-center justify-center active:scale-90 transition-all"
-                  style={{ background: 'rgba(0,240,255,0.1)', color: '#00f0ff', fontSize: 18, fontWeight: 700 }}
+                  style={{ background: 'rgba(34,211,238,0.14)', color: ACCENT, fontSize: 18, fontWeight: 700 }}
                 >−</button>
-                <span style={{ ...orb, fontSize: 16, fontWeight: 900, color: '#00f0ff', minWidth: 36, textAlign: 'center' }}>
+                <span style={{ ...orb, fontSize: 16, fontWeight: 900, color: ACCENT, minWidth: 36, textAlign: 'center' }}>
                   {settings.weight}
                 </span>
                 <button
                   onClick={() => update('weight', Math.min(200, settings.weight + 1))}
                   className="w-8 h-8 rounded-lg flex items-center justify-center active:scale-90 transition-all"
-                  style={{ background: 'rgba(0,240,255,0.1)', color: '#00f0ff', fontSize: 18, fontWeight: 700 }}
+                  style={{ background: 'rgba(34,211,238,0.14)', color: ACCENT, fontSize: 18, fontWeight: 700 }}
                 >+</button>
               </div>
             </Row>
             <Row label="Unit">
-              <div className="flex rounded-lg overflow-hidden" style={{ border: '1px solid rgba(0,240,255,0.2)' }}>
+              <div className="flex rounded-lg overflow-hidden" style={{ border: '1px solid rgba(255,255,255,0.14)' }}>
                 {(['metric', 'imperial'] as const).map(u => (
                   <button
                     key={u}
@@ -139,7 +139,7 @@ export default function Settings() {
                       ...mono,
                       fontSize: 10,
                       textTransform: 'uppercase',
-                      background: settings.unit === u ? '#00f0ff' : 'transparent',
+                      background: settings.unit === u ? ACCENT : 'transparent',
                       color: settings.unit === u ? '#000' : 'rgba(255,255,255,0.4)',
                       fontWeight: settings.unit === u ? 700 : 400,
                     }}
@@ -152,8 +152,8 @@ export default function Settings() {
 
         {/* Feedback */}
         <section>
-          <p style={{ ...orb, fontSize: 10, color: 'rgba(0,240,255,0.5)', letterSpacing: 2, textTransform: 'uppercase', marginBottom: 8 }}>Feedback</p>
-          <div className="rounded-2xl px-3" style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.07)' }}>
+          <p style={{ ...orb, fontSize: 10, color: 'rgba(34,211,238,0.6)', letterSpacing: 2, textTransform: 'uppercase', marginBottom: 8 }}>Feedback</p>
+          <div className="rounded-3xl px-4" style={glass}>
             <Row label="Voice Coach">
               <Toggle on={settings.voiceCoach} onToggle={() => update('voiceCoach', !settings.voiceCoach)} />
             </Row>
@@ -168,8 +168,8 @@ export default function Settings() {
 
         {/* Display */}
         <section>
-          <p style={{ ...orb, fontSize: 10, color: 'rgba(0,240,255,0.5)', letterSpacing: 2, textTransform: 'uppercase', marginBottom: 8 }}>Display</p>
-          <div className="rounded-2xl px-3" style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.07)' }}>
+          <p style={{ ...orb, fontSize: 10, color: 'rgba(34,211,238,0.6)', letterSpacing: 2, textTransform: 'uppercase', marginBottom: 8 }}>Display</p>
+          <div className="rounded-3xl px-4" style={glass}>
             <Row label="Show Angles">
               <Toggle on={settings.showAngles} onToggle={() => update('showAngles', !settings.showAngles)} />
             </Row>
@@ -177,7 +177,7 @@ export default function Settings() {
               <Toggle on={settings.lowLightBoost} onToggle={() => update('lowLightBoost', !settings.lowLightBoost)} />
             </Row>
             <Row label="Camera">
-              <div className="flex rounded-lg overflow-hidden" style={{ border: '1px solid rgba(0,240,255,0.2)' }}>
+              <div className="flex rounded-lg overflow-hidden" style={{ border: '1px solid rgba(255,255,255,0.14)' }}>
                 {(['user', 'environment'] as const).map(f => (
                   <button
                     key={f}
@@ -187,7 +187,7 @@ export default function Settings() {
                       ...mono,
                       fontSize: 10,
                       textTransform: 'uppercase',
-                      background: settings.cameraFacing === f ? '#00f0ff' : 'transparent',
+                      background: settings.cameraFacing === f ? ACCENT : 'transparent',
                       color: settings.cameraFacing === f ? '#000' : 'rgba(255,255,255,0.4)',
                       fontWeight: settings.cameraFacing === f ? 700 : 400,
                     }}
@@ -200,7 +200,7 @@ export default function Settings() {
 
         {/* Data */}
         <section>
-          <p style={{ ...orb, fontSize: 10, color: 'rgba(0,240,255,0.5)', letterSpacing: 2, textTransform: 'uppercase', marginBottom: 8 }}>Data</p>
+          <p style={{ ...orb, fontSize: 10, color: 'rgba(34,211,238,0.6)', letterSpacing: 2, textTransform: 'uppercase', marginBottom: 8 }}>Data</p>
           <div className="space-y-2">
             <button
               onClick={clearData}

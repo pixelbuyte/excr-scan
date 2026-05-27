@@ -3,9 +3,9 @@ interface Props {
 }
 
 function depthColor(pct: number) {
-  if (pct >= 80) return '#39ff14'
-  if (pct >= 45) return '#ffd700'
-  return '#ff4d4d'
+  if (pct >= 80) return '#4ade80'
+  if (pct >= 45) return '#fbbf24'
+  return '#f87171'
 }
 
 export function BatteryMeter({ depth }: Props) {
@@ -17,8 +17,14 @@ export function BatteryMeter({ depth }: Props) {
     <div className="flex flex-col items-center gap-1.5 select-none">
       {/* Outer shell */}
       <div
-        className="relative rounded-sm border border-white/20"
-        style={{ width: 28, height: 180, background: 'rgba(0,0,0,0.6)' }}
+        className="relative rounded-xl"
+        style={{
+          width: 28, height: 180,
+          background: 'linear-gradient(135deg, rgba(255,255,255,0.10), rgba(255,255,255,0.03))',
+          backdropFilter: 'blur(12px)', WebkitBackdropFilter: 'blur(12px)',
+          border: '1px solid rgba(255,255,255,0.14)',
+          boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.14)',
+        }}
       >
         {/* Battery tip */}
         <div

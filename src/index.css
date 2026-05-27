@@ -55,3 +55,42 @@
   66%  { transform: translate(-20px, 30px) rotate(-1deg); }
   100% { transform: translate(0, 0) rotate(0deg); }
 }
+
+/* ── Glassmorphism ── */
+
+@keyframes blob-float {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  33%      { transform: translate(40px, -30px) scale(1.1); }
+  66%      { transform: translate(-30px, 40px) scale(0.95); }
+}
+
+@keyframes sheen {
+  0%   { transform: translateX(-120%) skewX(-18deg); }
+  100% { transform: translateX(220%)  skewX(-18deg); }
+}
+
+/* Floating ambient colour blobs behind glass */
+.glass-blob {
+  position: absolute;
+  border-radius: 9999px;
+  filter: blur(60px);
+  opacity: 0.55;
+  pointer-events: none;
+  animation: blob-float 16s ease-in-out infinite;
+}
+
+/* Animated sheen sweep across a button/panel */
+.sheen::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.35), transparent);
+  width: 40%;
+  animation: sheen 3.5s ease-in-out infinite;
+  pointer-events: none;
+}
+
+.no-scrollbar::-webkit-scrollbar { display: none; }
+.no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+* { -webkit-tap-highlight-color: transparent; }

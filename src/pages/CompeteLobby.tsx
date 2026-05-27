@@ -1,6 +1,8 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useCompete } from '../hooks/useCompete'
+import { Ambient } from '../components/Ambient'
+import { glass, glassTint, fontHead, fontMono, softGlow, ACCENT, ACCENT_GREEN } from '../styles/glass'
 
 export default function CompeteLobby() {
   const navigate  = useNavigate()
@@ -43,34 +45,33 @@ export default function CompeteLobby() {
   }
 
   const inputStyle: React.CSSProperties = {
-    fontFamily: '"Space Mono", monospace',
-    background: 'rgba(255,255,255,0.05)',
-    border: '1px solid rgba(0,240,255,0.3)',
-    borderRadius: 8,
+    ...fontMono,
+    ...glass,
+    borderRadius: 18,
     color: '#fff',
-    padding: '10px 14px',
+    padding: '14px 16px',
     width: '100%',
     outline: 'none',
-    fontSize: 18,
-    letterSpacing: 6,
+    fontSize: 22,
+    letterSpacing: 8,
+    textAlign: 'center',
     textTransform: 'uppercase',
   }
 
   return (
-    <div
-      className="min-h-screen flex flex-col items-center justify-center px-4"
-      style={{ background: '#0a0a0a', color: '#fff' }}
-    >
-      <div className="w-full max-w-sm space-y-6">
+    <div className="min-h-screen flex flex-col items-center justify-center px-4 relative" style={{ color: '#fff' }}>
+      <Ambient />
+      <div className="relative z-10 w-full max-w-sm space-y-7">
         {/* Header */}
-        <div className="text-center space-y-1">
+        <div className="text-center space-y-2">
+          <div className="text-5xl">⚔️</div>
           <h1
-            className="text-3xl font-black tracking-widest uppercase"
-            style={{ fontFamily: '"Orbitron", sans-serif', color: '#39ff14', textShadow: '0 0 16px rgba(57,255,20,0.5)' }}
+            className="text-4xl font-black tracking-tight"
+            style={{ ...fontHead, background: `linear-gradient(135deg,#fff,${ACCENT_GREEN})`, WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}
           >
             Compete
           </h1>
-          <p className="text-white/30 text-xs tracking-widest uppercase" style={{ fontFamily: '"Space Mono", monospace' }}>
+          <p className="text-white/40 text-xs tracking-widest uppercase" style={fontMono}>
             Challenge a friend in real-time
           </p>
         </div>
@@ -80,16 +81,16 @@ export default function CompeteLobby() {
             <button
               onClick={handleCreate}
               disabled={loading}
-              className="w-full py-4 rounded-xl font-black uppercase tracking-widest active:scale-95 transition-all disabled:opacity-40"
-              style={{ fontFamily: '"Orbitron", sans-serif', background: '#00f0ff', color: '#000', boxShadow: '0 0 20px rgba(0,240,255,0.4)' }}
+              className="w-full py-4 rounded-3xl font-black uppercase tracking-widest active:scale-[0.97] transition-transform disabled:opacity-40"
+              style={{ ...fontHead, color: '#04121a', background: `linear-gradient(135deg, ${ACCENT}, ${ACCENT_GREEN})`, boxShadow: softGlow(ACCENT) }}
             >
               {loading ? 'Creating…' : 'Create Room'}
             </button>
 
             <button
               onClick={() => setMode('join')}
-              className="w-full py-4 rounded-xl font-black uppercase tracking-widest active:scale-95 transition-all"
-              style={{ fontFamily: '"Orbitron", sans-serif', color: '#39ff14', background: 'rgba(57,255,20,0.06)', border: '1px solid rgba(57,255,20,0.3)' }}
+              className="w-full py-4 rounded-3xl font-black uppercase tracking-widest active:scale-[0.97] transition-transform"
+              style={{ ...fontHead, color: ACCENT_GREEN, ...glassTint(ACCENT_GREEN) }}
             >
               Join Room
             </button>
@@ -98,20 +99,17 @@ export default function CompeteLobby() {
 
         {mode === 'host' && (
           <div className="space-y-4">
-            <div
-              className="rounded-xl p-5 text-center space-y-2"
-              style={{ background: 'rgba(0,240,255,0.05)', border: '1px solid rgba(0,240,255,0.3)', animation: 'glow-border 2s ease-in-out infinite' }}
-            >
-              <p className="text-white/40 text-xs uppercase tracking-widest" style={{ fontFamily: '"Space Mono", monospace' }}>
+            <div className="rounded-[28px] p-6 text-center space-y-2" style={glassTint(ACCENT)}>
+              <p className="text-white/40 text-xs uppercase tracking-widest" style={fontMono}>
                 Share this code
               </p>
               <div
                 className="text-5xl font-black tracking-[0.3em]"
-                style={{ fontFamily: '"Orbitron", sans-serif', color: '#00f0ff', textShadow: '0 0 20px rgba(0,240,255,0.7)' }}
+                style={{ ...fontHead, color: ACCENT, textShadow: `0 0 24px ${ACCENT}99` }}
               >
                 {roomCode}
               </div>
-              <p className="text-white/30 text-xs" style={{ fontFamily: '"Space Mono", monospace' }}>
+              <p className="text-white/40 text-xs" style={fontMono}>
                 {waiting ? 'Waiting for opponent to join…' : 'Connected!'}
               </p>
             </div>
@@ -137,8 +135,8 @@ export default function CompeteLobby() {
             <button
               onClick={handleJoin}
               disabled={loading}
-              className="w-full py-4 rounded-xl font-black uppercase tracking-widest active:scale-95 transition-all disabled:opacity-40"
-              style={{ fontFamily: '"Orbitron", sans-serif', background: '#00f0ff', color: '#000', boxShadow: '0 0 20px rgba(0,240,255,0.4)' }}
+              className="w-full py-4 rounded-3xl font-black uppercase tracking-widest active:scale-[0.97] transition-transform disabled:opacity-40"
+              style={{ ...fontHead, color: '#04121a', background: `linear-gradient(135deg, ${ACCENT}, ${ACCENT_GREEN})`, boxShadow: softGlow(ACCENT) }}
             >
               {loading ? 'Connecting…' : 'Join'}
             </button>
@@ -146,15 +144,15 @@ export default function CompeteLobby() {
         )}
 
         {(error || localErr) && (
-          <p className="text-red-400 text-xs text-center" style={{ fontFamily: '"Space Mono", monospace' }}>
+          <p className="text-red-400 text-xs text-center" style={fontMono}>
             {error || localErr}
           </p>
         )}
 
         <button
           onClick={() => { disconnect(); navigate('/') }}
-          className="w-full text-white/30 text-sm hover:text-white/60 transition-colors py-2"
-          style={{ fontFamily: '"Space Mono", monospace' }}
+          className="w-full text-white/40 text-sm hover:text-white/70 transition-colors py-2"
+          style={fontMono}
         >
           ← Back
         </button>

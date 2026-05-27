@@ -1,9 +1,11 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { getDailyChallenge, markDailyComplete, getWeeklyStreak } from '../utils/dailyChallenge'
+import { Ambient } from '../components/Ambient'
+import { glassTint, glassPill, fontHead, fontMono, softGlow, ACCENT, ACCENT_GREEN, ACCENT_GOLD } from '../styles/glass'
 
-const mono = { fontFamily: '"Space Mono", monospace' }
-const orb  = { fontFamily: '"Orbitron", sans-serif' }
+const mono = fontMono
+const orb  = fontHead
 
 export default function DailyChallenge() {
   const navigate  = useNavigate()
@@ -24,48 +26,40 @@ export default function DailyChallenge() {
   }
 
   return (
-    <div className="min-h-screen flex flex-col" style={{ background: '#0a0a0a', color: '#fff' }}>
+    <div className="min-h-screen flex flex-col relative" style={{ color: '#fff' }}>
+      <Ambient />
       {/* Header */}
-      <div
-        className="flex items-center gap-3 px-4 py-4"
-        style={{ borderBottom: '1px solid rgba(0,240,255,0.15)' }}
-      >
+      <div className="relative z-10 flex items-center gap-3 px-4 py-4">
         <button
           onClick={() => navigate(-1)}
-          className="w-9 h-9 rounded-xl flex items-center justify-center active:scale-90 transition-all"
-          style={{ background: 'rgba(0,240,255,0.08)', border: '1px solid rgba(0,240,255,0.2)' }}
+          className="w-9 h-9 rounded-full flex items-center justify-center active:scale-90 transition-transform"
+          style={{ ...glassPill, color: ACCENT }}
         >
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#00f0ff" strokeWidth="2">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={ACCENT} strokeWidth="2">
             <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
           </svg>
         </button>
         <div>
-          <h1 style={{ ...orb, fontSize: 14, fontWeight: 900, color: '#00f0ff', letterSpacing: 3, textTransform: 'uppercase' }}>
+          <h1 style={{ ...orb, fontSize: 14, fontWeight: 900, color: '#fff', letterSpacing: 3, textTransform: 'uppercase' }}>
             Daily Challenge
           </h1>
-          <p style={{ ...mono, fontSize: 9, color: 'rgba(255,255,255,0.3)', marginTop: 1 }}>{challenge.date}</p>
+          <p style={{ ...mono, fontSize: 9, color: 'rgba(255,255,255,0.4)', marginTop: 1 }}>{challenge.date}</p>
         </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto px-4 py-5 space-y-5 max-w-sm mx-auto w-full">
+      <div className="relative z-10 flex-1 overflow-y-auto px-4 py-5 space-y-5 max-w-sm mx-auto w-full">
 
         {/* Weekly streak */}
-        <div
-          className="rounded-2xl p-4 flex items-center justify-between"
-          style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,215,0,0.2)' }}
-        >
+        <div className="rounded-3xl p-4 flex items-center justify-between" style={glassTint(ACCENT_GOLD)}>
           <div>
-            <p style={{ ...orb, fontSize: 10, color: 'rgba(255,215,0,0.6)', letterSpacing: 2, textTransform: 'uppercase' }}>Weekly Streak</p>
-            <p style={{ ...orb, fontSize: 28, fontWeight: 900, color: '#ffd700', lineHeight: 1.1, marginTop: 2 }}>{streak} days</p>
+            <p style={{ ...orb, fontSize: 10, color: 'rgba(251,191,36,0.7)', letterSpacing: 2, textTransform: 'uppercase' }}>Weekly Streak</p>
+            <p style={{ ...orb, fontSize: 28, fontWeight: 900, color: ACCENT_GOLD, lineHeight: 1.1, marginTop: 2 }}>{streak} days</p>
           </div>
           <div style={{ fontSize: 40 }}>🔥</div>
         </div>
 
         {/* Challenge card */}
-        <div
-          className="rounded-2xl p-4 space-y-4"
-          style={{ background: 'rgba(0,240,255,0.04)', border: '1px solid rgba(0,240,255,0.2)' }}
-        >
+        <div className="rounded-3xl p-4 space-y-4" style={glassTint(ACCENT)}>
           <div>
             <p style={{ ...mono, fontSize: 9, color: 'rgba(255,255,255,0.3)', textTransform: 'uppercase', letterSpacing: 1 }}>Today's Workout</p>
             <h2 style={{ ...orb, fontSize: 18, fontWeight: 900, color: '#fff', marginTop: 4 }}>{challenge.title}</h2>
@@ -76,22 +70,18 @@ export default function DailyChallenge() {
               <button
                 key={i}
                 onClick={() => toggle(i)}
-                className="w-full flex items-center gap-3 rounded-xl p-3 transition-all active:scale-[0.98]"
-                style={{
-                  background: done[i] ? 'rgba(57,255,20,0.08)' : 'rgba(255,255,255,0.03)',
-                  border: `1px solid ${done[i] ? 'rgba(57,255,20,0.3)' : 'rgba(255,255,255,0.08)'}`,
-                  textAlign: 'left',
-                }}
+                className="w-full flex items-center gap-3 rounded-2xl p-3 transition-all active:scale-[0.98]"
+                style={done[i] ? { ...glassTint(ACCENT_GREEN), textAlign: 'left' } : { ...glassPill, borderRadius: 16, textAlign: 'left' }}
               >
                 <div
                   className="w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 transition-all"
                   style={{
-                    background: done[i] ? '#39ff14' : 'transparent',
-                    border: `2px solid ${done[i] ? '#39ff14' : 'rgba(255,255,255,0.2)'}`,
+                    background: done[i] ? ACCENT_GREEN : 'transparent',
+                    border: `2px solid ${done[i] ? ACCENT_GREEN : 'rgba(255,255,255,0.25)'}`,
                   }}
                 >
                   {done[i] && (
-                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#000" strokeWidth="3">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#04121a" strokeWidth="3">
                       <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                     </svg>
                   )}
@@ -100,7 +90,7 @@ export default function DailyChallenge() {
                   style={{
                     ...mono,
                     fontSize: 12,
-                    color: done[i] ? '#39ff14' : 'rgba(255,255,255,0.8)',
+                    color: done[i] ? ACCENT_GREEN : 'rgba(255,255,255,0.85)',
                     textDecoration: done[i] ? 'line-through' : 'none',
                   }}
                 >
@@ -114,30 +104,20 @@ export default function DailyChallenge() {
         {/* Completion card */}
         {completed && (
           <div
-            className="rounded-2xl p-5 text-center"
-            style={{
-              background: 'rgba(57,255,20,0.06)',
-              border: '1px solid rgba(57,255,20,0.4)',
-              boxShadow: '0 0 24px rgba(57,255,20,0.12)',
-              animation: 'winner-pop 0.4s ease-out',
-            }}
+            className="rounded-3xl p-5 text-center"
+            style={{ ...glassTint(ACCENT_GREEN), animation: 'winner-pop 0.4s ease-out' }}
           >
             <div style={{ fontSize: 48 }}>🏆</div>
-            <h3 style={{ ...orb, fontSize: 16, fontWeight: 900, color: '#39ff14', marginTop: 8 }}>Challenge Complete!</h3>
-            <p style={{ ...mono, fontSize: 10, color: 'rgba(255,255,255,0.4)', marginTop: 4 }}>Streak extended · Come back tomorrow</p>
+            <h3 style={{ ...orb, fontSize: 16, fontWeight: 900, color: ACCENT_GREEN, marginTop: 8 }}>Challenge Complete!</h3>
+            <p style={{ ...mono, fontSize: 10, color: 'rgba(255,255,255,0.45)', marginTop: 4 }}>Streak extended · Come back tomorrow</p>
           </div>
         )}
 
         {/* CTA */}
         <button
           onClick={() => navigate('/scan')}
-          className="w-full py-4 rounded-xl font-black text-black uppercase tracking-widest transition-all active:scale-95"
-          style={{
-            ...orb,
-            fontSize: 13,
-            background: '#00f0ff',
-            boxShadow: '0 0 20px rgba(0,240,255,0.5)',
-          }}
+          className="w-full py-4 rounded-3xl font-black uppercase tracking-widest active:scale-[0.97] transition-transform"
+          style={{ ...orb, fontSize: 13, color: '#04121a', background: `linear-gradient(135deg, ${ACCENT}, ${ACCENT_GREEN})`, boxShadow: softGlow(ACCENT) }}
         >
           Start Training
         </button>
@@ -148,7 +128,7 @@ export default function DailyChallenge() {
             <div
               key={i}
               className="w-2 h-2 rounded-full transition-all"
-              style={{ background: done[i] ? '#39ff14' : 'rgba(255,255,255,0.15)' }}
+              style={{ background: done[i] ? ACCENT_GREEN : 'rgba(255,255,255,0.18)' }}
             />
           ))}
         </div>
