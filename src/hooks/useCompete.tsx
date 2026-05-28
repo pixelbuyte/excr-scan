@@ -30,6 +30,21 @@ const EMPTY_OPP: OpponentState = { reps: 0, formScore: 0, exercise: 'squat', pha
 // redundant public Nostr relays — no broker to run, no sharded peer registry.
 const APP_ID = 'excr-scan-compete-v1'
 
+// Relays find the peer; the WebRTC link still has to cross NATs. Phone-on-cellular
+// ↔ PC-on-WiFi are different NATs that STUN alone can't punch — without TURN the
+// peer is discovered but the data channel never opens (lobby spinner hangs).
+// Free public TURN (openrelay, no signup); :443?transport=tcp survives networks
+// that block UDP. No backend to run — fits the all-local constraint.
+const RTC_CONFIG: RTCConfiguration = {
+  iceServers: [
+    { urls: 'stun:stun.l.google.com:19302' },
+    { urls: 'stun:stun1.l.google.com:19302' },
+    { urls: 'turn:openrelay.metered.ca:80', username: 'openrelayproject', credential: 'openrelayproject' },
+    { urls: 'turn:openrelay.metered.ca:443', username: 'openrelayproject', credential: 'openrelayproject' },
+    { urls: 'turn:openrelay.metered.ca:443?transport=tcp', username: 'openrelayproject', credential: 'openrelayproject' },
+  ],
+}
+
 const STATUS_TEXT: Record<ConnStatus, string> = {
   idle:      '',
   server:    'Connecting…',
@@ -56,7 +71,7 @@ export function CompeteProvider({ children }: { children: ReactNode }) {
     roomRef.current?.leave()
     setOpponent(EMPTY_OPP)
 
-    const room = trysteroJoin({ appId: APP_ID }, `EXCR-${code}`)
+    const room = trysteroJoin({ appId: APP_ID, rtcConfig: RTC_CONFIG }, `EXCR-${code}`)
     roomRef.current = room
 
     const action = room.makeAction<Partial<OpponentState>>('state')
@@ -109,7 +124,7 @@ export function CompeteProvider({ children }: { children: ReactNode }) {
         roomRef.current?.leave()
         roomRef.current = null
         reject(new Error('timeout'))
-      }, 25000)
+      }, 40000)
 
       setupRoom(clean, () => {
         clearTimeout(timeout)
