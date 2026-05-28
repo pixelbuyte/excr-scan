@@ -1,5 +1,6 @@
 import { createContext, useContext, useState, useRef, useCallback, type ReactNode } from 'react'
-import { joinRoom as trysteroJoin, type Room } from 'trystero/nostr'
+import { SimplePool } from 'nostr-tools/pool'
+import { generateSecretKey, getPublicKey, finalizeEvent, type Event } from 'nostr-tools/pure'
 
 export interface OpponentState {
   reps: number
@@ -27,30 +28,29 @@ interface CompeteApi {
 
 const EMPTY_OPP: OpponentState = { reps: 0, formScore: 0, exercise: 'squat', phase: 'up' }
 
-// Trystero appId namespaces all rooms for this app. Room matching happens over
-// redundant public Nostr relays — no broker to run, no sharded peer registry.
-const APP_ID = 'excr-scan-compete-v1'
+// Compete data rides directly on public Nostr relays — NOT WebRTC. No STUN/TURN,
+// so no NAT traversal to fail: phone-on-cellular and PC-on-WiFi just pub/sub to
+// the same relays. Same free public infra already trusted for discovery; no
+// backend to run (fits the all-local rule). State is tiny + low-frequency.
+const RELAYS = [
+  'wss://relay.damus.io',
+  'wss://nos.lol',
+  'wss://relay.snort.social',
+  'wss://nostr.wine',
+  'wss://relay.nostr.band',
+  'wss://nostr-pub.wellorder.net',
+]
 
-// Relays find the peer; the WebRTC link still has to cross NATs. Phone-on-cellular
-// ↔ PC-on-WiFi are different NATs that STUN alone can't punch — without TURN the
-// peer is discovered but the data channel never opens (lobby spinner hangs).
-// Free public TURN (openrelay, no signup); :443?transport=tcp survives networks
-// that block UDP. No backend to run — fits the all-local constraint.
-const RTC_CONFIG: RTCConfiguration = {
-  iceServers: [
-    { urls: 'stun:stun.l.google.com:19302' },
-    { urls: 'stun:stun1.l.google.com:19302' },
-    { urls: 'turn:openrelay.metered.ca:80', username: 'openrelayproject', credential: 'openrelayproject' },
-    { urls: 'turn:openrelay.metered.ca:443', username: 'openrelayproject', credential: 'openrelayproject' },
-    { urls: 'turn:openrelay.metered.ca:443?transport=tcp', username: 'openrelayproject', credential: 'openrelayproject' },
-  ],
-}
+// Ephemeral event kind (20000-29999): relays broadcast but never store these.
+const KIND = 20001
+const PEER_TIMEOUT = 14000   // peer considered gone if silent this long
+const HEARTBEAT = 4000       // presence keepalive when state isn't changing
 
 const STATUS_TEXT: Record<ConnStatus, string> = {
   idle:      '',
-  server:    'Connecting…',
+  server:    'Connecting to relays…',
   waiting:   'Waiting for opponent…',
-  pairing:   'Opponent found — linking up…',
+  pairing:   'Finding opponent…',
   connected: 'Connected!',
   error:     'Connection failed',
 }
@@ -58,9 +58,14 @@ const STATUS_TEXT: Record<ConnStatus, string> = {
 const CompeteContext = createContext<CompeteApi | null>(null)
 
 export function CompeteProvider({ children }: { children: ReactNode }) {
-  const roomRef = useRef<Room | null>(null)
-  const sendRef = useRef<((d: Partial<OpponentState>) => void) | null>(null)
-  const monRef  = useRef<ReturnType<typeof setInterval> | null>(null)
+  const poolRef  = useRef<SimplePool | null>(null)
+  const subRef   = useRef<{ close: () => void } | null>(null)
+  const skRef    = useRef<Uint8Array | null>(null)
+  const pkRef    = useRef<string>('')
+  const tagRef   = useRef<string>('')
+  const stateRef = useRef<OpponentState>({ ...EMPTY_OPP })   // our latest outgoing state
+  const hbRef    = useRef<ReturnType<typeof setInterval> | null>(null)
+  const peerSeen = useRef<number>(0)                          // last time we heard a peer
 
   const [roomCode,  setRoomCode]  = useState('')
   const [connected, setConnected] = useState(false)
@@ -71,81 +76,93 @@ export function CompeteProvider({ children }: { children: ReactNode }) {
 
   const lastDbg = useRef('')
   const dbg = (m: string) => {
-    if (m === lastDbg.current) return            // dedupe consecutive identical
+    if (m === lastDbg.current) return
     lastDbg.current = m
     const t = new Date().toTimeString().slice(0, 8)
     setDebug(d => [...d.slice(-13), `${t}  ${m}`])
   }
 
-  // Poll Trystero's underlying RTCPeerConnections so the lobby can show whether
-  // a peer was ever discovered (relay/signaling worked) and how far ICE got
-  // (host/srflx => direct, relay => via TURN, failed => NAT couldn't be crossed).
-  function startMonitor(room: Room) {
-    if (monRef.current) clearInterval(monRef.current)
-    let sawPeer = false
-    monRef.current = setInterval(() => {
-      try {
-        const peers = (room as unknown as { getPeers?: () => Record<string, RTCPeerConnection> }).getPeers?.() || {}
-        const ids = Object.keys(peers)
-        if (!ids.length) { if (!sawPeer) dbg('searching… no peer yet'); return }
-        sawPeer = true
-        const pc = peers[ids[0]]
-        dbg(`ice:${pc.iceConnectionState} conn:${pc.connectionState}`)
-        if (pc.connectionState === 'connected') {
-          pc.getStats().then(stats => {
-            stats.forEach(r => {
-              if (r.type === 'candidate-pair' && r.state === 'succeeded' && r.localCandidateId) {
-                const local = stats.get(r.localCandidateId)
-                if (local) dbg(`linked via ${local.candidateType}`) // relay = TURN used
-              }
-            })
-          }).catch(() => {})
-        }
-      } catch { /* getPeers unavailable on this build */ }
-    }, 1500)
+  function publish(obj: object) {
+    const pool = poolRef.current, sk = skRef.current
+    if (!pool || !sk) return
+    const ev = finalizeEvent({
+      kind: KIND,
+      created_at: Math.floor(Date.now() / 1000),
+      tags: [['t', tagRef.current]],
+      content: JSON.stringify(obj),
+    }, sk)
+    // Swallow per-relay errors (rate limits, dropped sockets) — one relay
+    // refusing must never reject into the app; others still carry the event.
+    for (const p of pool.publish(RELAYS, ev)) Promise.resolve(p).catch(() => {})
   }
 
-  function stopMonitor() {
-    if (monRef.current) { clearInterval(monRef.current); monRef.current = null }
+  function teardown() {
+    if (hbRef.current) { clearInterval(hbRef.current); hbRef.current = null }
+    subRef.current?.close(); subRef.current = null
+    poolRef.current?.close(RELAYS); poolRef.current = null
+    skRef.current = null; pkRef.current = ''; tagRef.current = ''
+    peerSeen.current = 0
   }
 
-  // Join a Trystero room by code. onLink fires when the first peer is found.
+  // Join a room channel over the relays. onLink fires the first time we hear a peer.
   function setupRoom(code: string, onLink?: () => void) {
-    roomRef.current?.leave()
-    stopMonitor()
+    teardown()
     setOpponent(EMPTY_OPP)
-    dbg(`joining EXCR-${code}`)
+    stateRef.current = { ...EMPTY_OPP }
 
-    const room = trysteroJoin({ appId: APP_ID, rtcConfig: RTC_CONFIG }, `EXCR-${code}`)
-    roomRef.current = room
-    startMonitor(room)
+    const sk = generateSecretKey()
+    skRef.current = sk
+    pkRef.current = getPublicKey(sk)
+    tagRef.current = `excr-${code.toLowerCase()}`
+    dbg(`opening channel ${tagRef.current}`)
 
-    const action = room.makeAction<Partial<OpponentState>>('state')
-    sendRef.current = (d) => { void action.send(d) }
+    const pool = new SimplePool()
+    poolRef.current = pool
 
-    action.onMessage = (data) => {
-      if (data && typeof data === 'object') {
-        setOpponent(prev => ({ ...prev, ...data }))
+    subRef.current = pool.subscribeMany(
+      RELAYS,
+      { kinds: [KIND], '#t': [tagRef.current], since: Math.floor(Date.now() / 1000) - 5 },
+      {
+        onevent: (ev: Event) => {
+          if (ev.pubkey === pkRef.current) return            // ignore our own echoes
+          const first = peerSeen.current === 0
+          peerSeen.current = Date.now()
+          if (first) {
+            dbg(`opponent online ${ev.pubkey.slice(0, 6)}`)
+            setConnected(true)
+            setStatus('connected')
+            publish({ ...stateRef.current, hello: 1 })          // answer so they see us too
+            onLink?.()
+          }
+          try {
+            const data = JSON.parse(ev.content)
+            if (data && typeof data === 'object') {
+              setOpponent(prev => ({
+                reps:      typeof data.reps === 'number' ? data.reps : prev.reps,
+                formScore: typeof data.formScore === 'number' ? data.formScore : prev.formScore,
+                exercise:  typeof data.exercise === 'string' ? data.exercise : prev.exercise,
+                phase:     data.phase === 'up' || data.phase === 'down' ? data.phase : prev.phase,
+              }))
+            }
+          } catch { /* non-state heartbeat */ }
+        },
+        oneose: () => dbg('relays subscribed'),
       }
-    }
+    )
 
-    room.onPeerJoin = (peerId?: string) => {
-      dbg(`peer joined ${String(peerId ?? '').slice(0, 6)} — channel open`)
-      setConnected(true)
-      setStatus('connected')
-      // Immediate handshake so both panels populate
-      try { void action.send({ reps: 0, formScore: 0 }) } catch { /* */ }
-      onLink?.()
-    }
+    // Heartbeat: announce presence + latest state; detect a peer going silent.
+    hbRef.current = setInterval(() => {
+      publish({ ...stateRef.current, hb: 1 })
+      if (peerSeen.current && Date.now() - peerSeen.current > PEER_TIMEOUT) {
+        dbg('opponent went silent')
+        setConnected(false)
+        setStatus('error')
+        setError('Opponent disconnected')
+        peerSeen.current = 0
+      }
+    }, HEARTBEAT)
 
-    room.onPeerLeave = () => {
-      dbg('peer left')
-      setConnected(false)
-      setStatus('error')
-      setError('Opponent disconnected')
-    }
-
-    return room
+    publish({ ...stateRef.current, hello: 1 })                 // initial presence ping
   }
 
   const createRoom = useCallback((): Promise<string> => {
@@ -153,11 +170,11 @@ export function CompeteProvider({ children }: { children: ReactNode }) {
       const code = Math.random().toString(36).replace(/[^a-z0-9]/g, '').substring(0, 6).toUpperCase().padEnd(6, 'X')
       setError('')
       setDebug([])
+      setConnected(false)
       setStatus('waiting')
       setRoomCode(code)
       setupRoom(code)
-      // Room is live immediately; host just waits for a peer.
-      resolve(code)
+      resolve(code)        // channel is live; host waits for a peer to appear
     })
   }, [])
 
@@ -166,14 +183,13 @@ export function CompeteProvider({ children }: { children: ReactNode }) {
       const clean = code.toUpperCase().trim()
       setError('')
       setDebug([])
+      setConnected(false)
       setStatus('pairing')
 
       const timeout = setTimeout(() => {
         setStatus('error')
-        setError('Could not link up — peer found but connection blocked, or no host on that code')
-        stopMonitor()
-        roomRef.current?.leave()
-        roomRef.current = null
+        setError('No opponent on that code — check it and that the host is waiting')
+        teardown()
         reject(new Error('timeout'))
       }, 40000)
 
@@ -185,15 +201,18 @@ export function CompeteProvider({ children }: { children: ReactNode }) {
     })
   }, [])
 
+  const lastSent = useRef('')
   const broadcast = useCallback((data: Partial<OpponentState>) => {
-    try { sendRef.current?.(data) } catch { /* not linked yet */ }
+    const next = { ...stateRef.current, ...data }
+    stateRef.current = next
+    const sig = JSON.stringify(next)
+    if (sig === lastSent.current) return        // skip unchanged — spare the relays
+    lastSent.current = sig
+    publish(next)
   }, [])
 
   const disconnect = useCallback(() => {
-    stopMonitor()
-    roomRef.current?.leave()
-    roomRef.current = null
-    sendRef.current = null
+    teardown()
     setConnected(false)
     setStatus('idle')
     setRoomCode('')

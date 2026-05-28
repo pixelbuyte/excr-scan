@@ -199,7 +199,7 @@ export default function Scanner() {
     if (!isCompete || !compete.connected) return
     const id = setInterval(() => {
       broadcastRef.current({ reps, formScore, exercise, phase: repState === 'SQUATTING' ? 'down' : 'up' })
-    }, 800)
+    }, 1500)
     return () => clearInterval(id)
   }, [isCompete, compete.connected, reps, formScore, exercise, repState])
 
