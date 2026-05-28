@@ -6,7 +6,7 @@ import { glass, glassTint, fontHead, fontMono, softGlow, ACCENT, ACCENT_GREEN } 
 
 export default function CompeteLobby() {
   const navigate  = useNavigate()
-  const { roomCode, connected, waiting, status, statusText, error, createRoom, joinRoom, disconnect } = useCompete()
+  const { roomCode, connected, waiting, status, statusText, error, debug, createRoom, joinRoom, disconnect } = useCompete()
 
   const [mode,      setMode]      = useState<'choose' | 'host' | 'join'>('choose')
   const [joinCode,  setJoinCode]  = useState('')
@@ -156,6 +156,19 @@ export default function CompeteLobby() {
           <p className="text-red-400 text-xs text-center" style={fontMono}>
             {error || localErr}
           </p>
+        )}
+
+        {/* Live connection diagnostics — shows where pairing succeeds or stalls */}
+        {(mode !== 'choose' && debug.length > 0) && (
+          <div
+            className="rounded-2xl p-3 text-left max-h-44 overflow-auto no-scrollbar"
+            style={{ ...glass, ...fontMono }}
+          >
+            <p className="text-white/30 text-[10px] uppercase tracking-widest mb-1">Connection log</p>
+            {debug.map((line, i) => (
+              <div key={i} className="text-[11px] text-white/55 leading-snug whitespace-nowrap">{line}</div>
+            ))}
+          </div>
         )}
 
         <button
