@@ -69,6 +69,7 @@ export function CompeteProvider({ children }: { children: ReactNode }) {
   const sendRef    = useRef<((data: OpponentState) => void) | null>(null)
   const stateRef   = useRef<OpponentState>({ ...EMPTY_OPP })   // our latest outgoing state
   const peerCount  = useRef(0)
+  const diagRef    = useRef<ReturnType<typeof setInterval> | null>(null)
 
   const [roomCode,  setRoomCode]  = useState('')
   const [connected, setConnected] = useState(false)
@@ -86,6 +87,7 @@ export function CompeteProvider({ children }: { children: ReactNode }) {
   }
 
   function teardown() {
+    if (diagRef.current) { clearInterval(diagRef.current); diagRef.current = null }
     try { roomRef.current?.leave() } catch { /* already gone */ }
     roomRef.current = null
     sendRef.current = null
@@ -106,8 +108,22 @@ export function CompeteProvider({ children }: { children: ReactNode }) {
       appId: APP_ID,
       rtcConfig: { iceServers: TURN },
       relayConfig: { urls: RELAY_URLS, redundancy: RELAY_URLS.length },
-    }, ns)
+    }, ns, {
+      onJoinError: (d) => dbg(`relay error: ${d.error}`),
+    })
     roomRef.current = room
+
+    // Surface where pairing stalls on a real phone: no peer object ⇒ signaling
+    // (Nostr relays) hasn't found the other side; peer exists but ICE stuck on
+    // checking/failed ⇒ TURN/NAT problem; connected ⇒ data channel about to open.
+    diagRef.current = setInterval(() => {
+      if (peerCount.current > 0) return
+      const peers = room.getPeers()
+      const ids = Object.keys(peers)
+      if (ids.length === 0) { dbg('searching relays…'); return }
+      const pc = peers[ids[0]]
+      dbg(`peer found — link ${pc.iceConnectionState}`)
+    }, 2000)
 
     const action = room.makeAction('s')
     sendRef.current = (s: OpponentState) => { action.send(s as unknown as DataPayload) }
