@@ -43,6 +43,16 @@ const TURN = [
 
 const APP_ID = 'excr-scan-compete-v1'
 
+// Trystero's default relay pool is huge and full of slow/dead nodes — peers can
+// land on disjoint subsets and take minutes to find each other. Pin a small set
+// of known-fast relays so both sides reliably meet on the same sockets fast.
+const RELAY_URLS = [
+  'wss://relay.damus.io',
+  'wss://nos.lol',
+  'wss://relay.nostr.band',
+  'wss://relay.snort.social',
+]
+
 const STATUS_TEXT: Record<ConnStatus, string> = {
   idle:      '',
   server:    'Connecting…',
@@ -92,7 +102,11 @@ export function CompeteProvider({ children }: { children: ReactNode }) {
     const ns = `excr-${code.toLowerCase()}`
     dbg(`opening channel ${ns}`)
 
-    const room = joinRoom({ appId: APP_ID, rtcConfig: { iceServers: TURN } }, ns)
+    const room = joinRoom({
+      appId: APP_ID,
+      rtcConfig: { iceServers: TURN },
+      relayConfig: { urls: RELAY_URLS, redundancy: RELAY_URLS.length },
+    }, ns)
     roomRef.current = room
 
     const action = room.makeAction('s')
