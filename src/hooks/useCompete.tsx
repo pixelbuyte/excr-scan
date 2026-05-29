@@ -1,6 +1,5 @@
 import { createContext, useContext, useState, useRef, useCallback, type ReactNode } from 'react'
-import { SimplePool } from 'nostr-tools/pool'
-import { generateSecretKey, getPublicKey, finalizeEvent, type Event } from 'nostr-tools/pure'
+import { joinRoom, type Room, type DataPayload } from 'trystero/nostr'
 
 export interface OpponentState {
   reps: number
@@ -28,27 +27,25 @@ interface CompeteApi {
 
 const EMPTY_OPP: OpponentState = { reps: 0, formScore: 0, exercise: 'squat', phase: 'up' }
 
-// Compete data rides directly on public Nostr relays — NOT WebRTC. No STUN/TURN,
-// so no NAT traversal to fail: phone-on-cellular and PC-on-WiFi just pub/sub to
-// the same relays. Same free public infra already trusted for discovery; no
-// backend to run (fits the all-local rule). State is tiny + low-frequency.
-const RELAYS = [
-  'wss://relay.damus.io',
-  'wss://nos.lol',
-  'wss://relay.snort.social',
-  'wss://nostr.wine',
-  'wss://relay.nostr.band',
-  'wss://nostr-pub.wellorder.net',
+// Discovery rides Trystero's Nostr signaling (no backend); the actual game data
+// runs over a real WebRTC data channel. Phone-on-cellular <-> PC-on-WiFi sit
+// behind different NATs, so a relay (TURN) is mandatory — STUN alone can't punch
+// symmetric/cellular NAT. These metered.ca creds are verified to relay a data
+// channel relay-only (turn-check.mjs). Creds are client-visible by design; this
+// is a free relay key, not a secret.
+const TURN = [
+  { urls: 'stun:stun.l.google.com:19302' },
+  { urls: 'turn:global.relay.metered.ca:80', username: '7c7b35f393b14fb5c4da85f2', credential: 'aRHWgTv9TfjeqV8d' },
+  { urls: 'turn:global.relay.metered.ca:80?transport=tcp', username: '7c7b35f393b14fb5c4da85f2', credential: 'aRHWgTv9TfjeqV8d' },
+  { urls: 'turn:global.relay.metered.ca:443', username: '7c7b35f393b14fb5c4da85f2', credential: 'aRHWgTv9TfjeqV8d' },
+  { urls: 'turns:global.relay.metered.ca:443?transport=tcp', username: '7c7b35f393b14fb5c4da85f2', credential: 'aRHWgTv9TfjeqV8d' },
 ]
 
-// Ephemeral event kind (20000-29999): relays broadcast but never store these.
-const KIND = 20001
-const PEER_TIMEOUT = 14000   // peer considered gone if silent this long
-const HEARTBEAT = 4000       // presence keepalive when state isn't changing
+const APP_ID = 'excr-scan-compete-v1'
 
 const STATUS_TEXT: Record<ConnStatus, string> = {
   idle:      '',
-  server:    'Connecting to relays…',
+  server:    'Connecting…',
   waiting:   'Waiting for opponent…',
   pairing:   'Finding opponent…',
   connected: 'Connected!',
@@ -58,14 +55,10 @@ const STATUS_TEXT: Record<ConnStatus, string> = {
 const CompeteContext = createContext<CompeteApi | null>(null)
 
 export function CompeteProvider({ children }: { children: ReactNode }) {
-  const poolRef  = useRef<SimplePool | null>(null)
-  const subRef   = useRef<{ close: () => void } | null>(null)
-  const skRef    = useRef<Uint8Array | null>(null)
-  const pkRef    = useRef<string>('')
-  const tagRef   = useRef<string>('')
-  const stateRef = useRef<OpponentState>({ ...EMPTY_OPP })   // our latest outgoing state
-  const hbRef    = useRef<ReturnType<typeof setInterval> | null>(null)
-  const peerSeen = useRef<number>(0)                          // last time we heard a peer
+  const roomRef    = useRef<Room | null>(null)
+  const sendRef    = useRef<((data: OpponentState) => void) | null>(null)
+  const stateRef   = useRef<OpponentState>({ ...EMPTY_OPP })   // our latest outgoing state
+  const peerCount  = useRef(0)
 
   const [roomCode,  setRoomCode]  = useState('')
   const [connected, setConnected] = useState(false)
@@ -82,87 +75,59 @@ export function CompeteProvider({ children }: { children: ReactNode }) {
     setDebug(d => [...d.slice(-13), `${t}  ${m}`])
   }
 
-  function publish(obj: object) {
-    const pool = poolRef.current, sk = skRef.current
-    if (!pool || !sk) return
-    const ev = finalizeEvent({
-      kind: KIND,
-      created_at: Math.floor(Date.now() / 1000),
-      tags: [['t', tagRef.current]],
-      content: JSON.stringify(obj),
-    }, sk)
-    // Swallow per-relay errors (rate limits, dropped sockets) — one relay
-    // refusing must never reject into the app; others still carry the event.
-    for (const p of pool.publish(RELAYS, ev)) Promise.resolve(p).catch(() => {})
-  }
-
   function teardown() {
-    if (hbRef.current) { clearInterval(hbRef.current); hbRef.current = null }
-    subRef.current?.close(); subRef.current = null
-    poolRef.current?.close(RELAYS); poolRef.current = null
-    skRef.current = null; pkRef.current = ''; tagRef.current = ''
-    peerSeen.current = 0
+    try { roomRef.current?.leave() } catch { /* already gone */ }
+    roomRef.current = null
+    sendRef.current = null
+    peerCount.current = 0
   }
 
-  // Join a room channel over the relays. onLink fires the first time we hear a peer.
+  // Open a room channel. onLink fires the first time a peer's data channel opens.
   function setupRoom(code: string, onLink?: () => void) {
     teardown()
     setOpponent(EMPTY_OPP)
     stateRef.current = { ...EMPTY_OPP }
+    peerCount.current = 0
 
-    const sk = generateSecretKey()
-    skRef.current = sk
-    pkRef.current = getPublicKey(sk)
-    tagRef.current = `excr-${code.toLowerCase()}`
-    dbg(`opening channel ${tagRef.current}`)
+    const ns = `excr-${code.toLowerCase()}`
+    dbg(`opening channel ${ns}`)
 
-    const pool = new SimplePool()
-    poolRef.current = pool
+    const room = joinRoom({ appId: APP_ID, rtcConfig: { iceServers: TURN } }, ns)
+    roomRef.current = room
 
-    subRef.current = pool.subscribeMany(
-      RELAYS,
-      { kinds: [KIND], '#t': [tagRef.current], since: Math.floor(Date.now() / 1000) - 5 },
-      {
-        onevent: (ev: Event) => {
-          if (ev.pubkey === pkRef.current) return            // ignore our own echoes
-          const first = peerSeen.current === 0
-          peerSeen.current = Date.now()
-          if (first) {
-            dbg(`opponent online ${ev.pubkey.slice(0, 6)}`)
-            setConnected(true)
-            setStatus('connected')
-            publish({ ...stateRef.current, hello: 1 })          // answer so they see us too
-            onLink?.()
-          }
-          try {
-            const data = JSON.parse(ev.content)
-            if (data && typeof data === 'object') {
-              setOpponent(prev => ({
-                reps:      typeof data.reps === 'number' ? data.reps : prev.reps,
-                formScore: typeof data.formScore === 'number' ? data.formScore : prev.formScore,
-                exercise:  typeof data.exercise === 'string' ? data.exercise : prev.exercise,
-                phase:     data.phase === 'up' || data.phase === 'down' ? data.phase : prev.phase,
-              }))
-            }
-          } catch { /* non-state heartbeat */ }
-        },
-        oneose: () => dbg('relays subscribed'),
-      }
-    )
+    const action = room.makeAction('s')
+    sendRef.current = (s: OpponentState) => { action.send(s as unknown as DataPayload) }
 
-    // Heartbeat: announce presence + latest state; detect a peer going silent.
-    hbRef.current = setInterval(() => {
-      publish({ ...stateRef.current, hb: 1 })
-      if (peerSeen.current && Date.now() - peerSeen.current > PEER_TIMEOUT) {
-        dbg('opponent went silent')
+    action.onMessage = (raw) => {
+      const data = raw as Partial<OpponentState>
+      if (!data || typeof data !== 'object') return
+      setOpponent(prev => ({
+        reps:      typeof data.reps === 'number' ? data.reps : prev.reps,
+        formScore: typeof data.formScore === 'number' ? data.formScore : prev.formScore,
+        exercise:  typeof data.exercise === 'string' ? data.exercise : prev.exercise,
+        phase:     data.phase === 'up' || data.phase === 'down' ? data.phase : prev.phase,
+      }))
+    }
+
+    room.onPeerJoin = (id: string) => {
+      const first = peerCount.current === 0
+      peerCount.current++
+      dbg(`opponent online ${id.slice(0, 6)}`)
+      setConnected(true)
+      setStatus('connected')
+      sendRef.current?.(stateRef.current)   // push current state so they sync immediately
+      if (first) onLink?.()
+    }
+
+    room.onPeerLeave = (id: string) => {
+      peerCount.current = Math.max(0, peerCount.current - 1)
+      dbg(`opponent left ${id.slice(0, 6)}`)
+      if (peerCount.current === 0) {
         setConnected(false)
         setStatus('error')
         setError('Opponent disconnected')
-        peerSeen.current = 0
       }
-    }, HEARTBEAT)
-
-    publish({ ...stateRef.current, hello: 1 })                 // initial presence ping
+    }
   }
 
   const createRoom = useCallback((): Promise<string> => {
@@ -178,7 +143,7 @@ export function CompeteProvider({ children }: { children: ReactNode }) {
     })
   }, [])
 
-  const joinRoom = useCallback((code: string): Promise<void> => {
+  const joinRoomFn = useCallback((code: string): Promise<void> => {
     return new Promise((resolve, reject) => {
       const clean = code.toUpperCase().trim()
       setError('')
@@ -205,10 +170,12 @@ export function CompeteProvider({ children }: { children: ReactNode }) {
   const broadcast = useCallback((data: Partial<OpponentState>) => {
     const next = { ...stateRef.current, ...data }
     stateRef.current = next
+    const send = sendRef.current
+    if (!send || peerCount.current === 0) return
     const sig = JSON.stringify(next)
-    if (sig === lastSent.current) return        // skip unchanged — spare the relays
+    if (sig === lastSent.current) return        // skip unchanged
     lastSent.current = sig
-    publish(next)
+    try { send(next) } catch { /* channel mid-teardown */ }
   }, [])
 
   const disconnect = useCallback(() => {
@@ -225,7 +192,7 @@ export function CompeteProvider({ children }: { children: ReactNode }) {
     <CompeteContext.Provider value={{
       roomCode, connected, waiting: status === 'waiting',
       status, statusText: STATUS_TEXT[status],
-      opponent, error, debug, createRoom, joinRoom, broadcast, disconnect,
+      opponent, error, debug, createRoom, joinRoom: joinRoomFn, broadcast, disconnect,
     }}>
       {children}
     </CompeteContext.Provider>

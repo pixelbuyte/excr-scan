@@ -5,6 +5,12 @@ import { chromium } from 'playwright'
 // must use so phone-on-cellular <-> PC-on-WiFi (different NATs => must relay) links.
 
 const CANDIDATES = {
+  'metered (user key)': [
+    { urls: 'turn:global.relay.metered.ca:80', username: '7c7b35f393b14fb5c4da85f2', credential: 'aRHWgTv9TfjeqV8d' },
+    { urls: 'turn:global.relay.metered.ca:80?transport=tcp', username: '7c7b35f393b14fb5c4da85f2', credential: 'aRHWgTv9TfjeqV8d' },
+    { urls: 'turn:global.relay.metered.ca:443', username: '7c7b35f393b14fb5c4da85f2', credential: 'aRHWgTv9TfjeqV8d' },
+    { urls: 'turns:global.relay.metered.ca:443?transport=tcp', username: '7c7b35f393b14fb5c4da85f2', credential: 'aRHWgTv9TfjeqV8d' },
+  ],
   'openrelay:80/443/tcp': [
     { urls: 'turn:openrelay.metered.ca:80', username: 'openrelayproject', credential: 'openrelayproject' },
     { urls: 'turn:openrelay.metered.ca:443', username: 'openrelayproject', credential: 'openrelayproject' },
