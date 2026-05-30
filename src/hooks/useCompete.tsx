@@ -67,6 +67,8 @@ const RELAY_URLS = [
   'wss://relay.damus.io',
   'wss://nos.lol',
   'wss://relay.primal.net',
+  'wss://relay.nostr.band',
+  'wss://nostr.mom',
   'wss://relay.snort.social',
 ]
 
@@ -305,7 +307,7 @@ export function CompeteProvider({ children }: { children: ReactNode }) {
   }, [])
 
   const joinRoomFn = useCallback((code: string): Promise<void> => {
-    return new Promise((resolve, reject) => {
+    return new Promise<void>((resolve) => {
       const clean = code.toUpperCase().trim()
       setError('')
       setDebug([])
@@ -313,12 +315,15 @@ export function CompeteProvider({ children }: { children: ReactNode }) {
       setStatus('pairing')
       isHostRef.current = false
 
+      // Slow relay discovery can take >40s; if we tore the room down here, a peer
+      // that links a moment later (host already shows "connected") would be lost —
+      // the exact "one side connected, other couldn't find" split. So keep the room
+      // OPEN past the timeout: surface a soft note but keep listening. A late peer
+      // join still flips `connected` → the lobby's effect auto-navigates to /scan.
       const timeout = setTimeout(() => {
-        setStatus('error')
-        setError('No opponent on that code — check it and that the host is waiting')
-        teardown()
-        reject(new Error('timeout'))
-      }, 40000)
+        setError('Still searching — keep this screen open and make sure the host is waiting on the same code')
+        resolve()   // stop the await spinner; do NOT teardown — let a late link through
+      }, 90000)
 
       setupRoom(clean, () => {
         clearTimeout(timeout)
