@@ -66,7 +66,7 @@ interface CtrlMsg {
 const RELAY_URLS = [
   'wss://relay.damus.io',
   'wss://nos.lol',
-  'wss://relay.nostr.band',
+  'wss://relay.primal.net',
   'wss://relay.snort.social',
 ]
 
