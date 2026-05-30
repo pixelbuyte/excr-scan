@@ -67,9 +67,9 @@ const RELAY_URLS = [
   'wss://relay.damus.io',
   'wss://nos.lol',
   'wss://relay.primal.net',
-  'wss://relay.nostr.band',
   'wss://nostr.mom',
   'wss://relay.snort.social',
+  'wss://nostr-pub.wellorder.net',
 ]
 
 const STATUS_TEXT: Record<ConnStatus, string> = {
