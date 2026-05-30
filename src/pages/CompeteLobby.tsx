@@ -1,17 +1,19 @@
-import { useState, useEffect } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useState, useEffect, useRef } from 'react'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useCompete } from '../hooks/useCompete'
 import { Ambient } from '../components/Ambient'
 import { glass, glassTint, fontHead, fontMono, softGlow, ACCENT, ACCENT_GREEN } from '../styles/glass'
 
 export default function CompeteLobby() {
   const navigate  = useNavigate()
+  const [params]  = useSearchParams()
   const { roomCode, connected, waiting, status, statusText, error, debug, createRoom, joinRoom, disconnect } = useCompete()
 
   const [mode,      setMode]      = useState<'choose' | 'host' | 'join'>('choose')
   const [joinCode,  setJoinCode]  = useState('')
   const [loading,   setLoading]   = useState(false)
   const [localErr,  setLocalErr]  = useState('')
+  const [copied,    setCopied]    = useState(false)
 
   async function handleCreate() {
     setLoading(true)
@@ -26,16 +28,39 @@ export default function CompeteLobby() {
     }
   }
 
-  async function handleJoin() {
-    if (joinCode.trim().length < 6) { setLocalErr('Enter 6-character room code'); return }
+  async function handleJoin(code?: string) {
+    const c = (code ?? joinCode).trim()
+    if (c.length < 6) { setLocalErr('Enter 6-character room code'); return }
     setLoading(true)
     setLocalErr('')
     try {
-      await joinRoom(joinCode.trim())
+      await joinRoom(c)
     } catch (e) {
       setLocalErr('Room not found or connection failed')
     } finally {
       setLoading(false)
+    }
+  }
+
+  // Deep link: /compete?room=CODE → drop straight into join + auto-connect.
+  const autoJoined = useRef(false)
+  useEffect(() => {
+    const code = params.get('room')
+    if (!code || autoJoined.current) return
+    autoJoined.current = true
+    const clean = code.toUpperCase().slice(0, 6)
+    setMode('join')
+    setJoinCode(clean)
+    handleJoin(clean)
+  }, [params]) // eslint-disable-line
+
+  function shareLink() {
+    const url = `${window.location.origin}/compete?room=${roomCode}`
+    const done = () => { setCopied(true); setTimeout(() => setCopied(false), 1800) }
+    if (navigator.share) {
+      navigator.share({ title: 'ExcrScan — Compete', text: `Join my workout battle, code ${roomCode}`, url }).catch(() => {})
+    } else {
+      navigator.clipboard?.writeText(url).then(done).catch(done)
     }
   }
 
@@ -115,6 +140,14 @@ export default function CompeteLobby() {
               </p>
             </div>
 
+            <button
+              onClick={shareLink}
+              className="w-full py-3.5 rounded-3xl font-black uppercase tracking-widest active:scale-[0.97] transition-transform"
+              style={{ ...fontHead, color: ACCENT_GREEN, ...glassTint(ACCENT_GREEN) }}
+            >
+              {copied ? '✓ Link copied' : '🔗 Share link'}
+            </button>
+
             {(status === 'waiting' || status === 'pairing' || status === 'server') && (
               <div className="flex items-center justify-center gap-2">
                 <div className="w-5 h-5 border-2 border-white/20 border-t-cyan-400 rounded-full animate-spin" />
@@ -135,7 +168,7 @@ export default function CompeteLobby() {
             />
 
             <button
-              onClick={handleJoin}
+              onClick={() => handleJoin()}
               disabled={loading}
               className="w-full py-4 rounded-3xl font-black uppercase tracking-widest active:scale-[0.97] transition-transform disabled:opacity-40"
               style={{ ...fontHead, color: '#04121a', background: `linear-gradient(135deg, ${ACCENT}, ${ACCENT_GREEN})`, boxShadow: softGlow(ACCENT) }}

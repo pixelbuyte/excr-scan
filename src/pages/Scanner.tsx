@@ -104,6 +104,9 @@ export default function Scanner() {
   const isCompete                = !!competeCtx?.compete
   const broadcastRef             = useRef<(d: Partial<OpponentState>) => void>(compete.broadcast)
   broadcastRef.current           = compete.broadcast
+  // Reps only count once the round is live (frozen during the pre-match countdown).
+  const matchLiveRef             = useRef(true)
+  matchLiveRef.current           = !isCompete || compete.matchPhase === 'live'
 
   // ── Rep callbacks ─────────────────────────────────────────────────────────
   const handleRep = useCallback(() => {
@@ -203,6 +206,23 @@ export default function Scanner() {
     return () => clearInterval(id)
   }, [isCompete, compete.connected, reps, formScore, exercise, repState])
 
+  // ── Compete round reset ───────────────────────────────────────────────────
+  // A new round (initial match or a rematch) bumps roundId — wipe local scores.
+  const prevRoundRef = useRef(0)
+  useEffect(() => {
+    if (!isCompete || compete.roundId === prevRoundRef.current) return
+    prevRoundRef.current = compete.roundId
+    resetRep()
+    fitnessRef.current.reset()
+    streakRef.current.reset()
+    repRecordsRef.current = []
+    lastRepMsRef.current  = 0
+    prevRepsRef.current   = 0
+    setElapsed(0)
+    sessionStartRef.current = performance.now()
+    setShowSummary(false)
+  }, [compete.roundId, isCompete, resetRep])
+
   // ── MediaPipe + camera init ───────────────────────────────────────────────
   useEffect(() => {
     let cancelled = false
@@ -297,7 +317,7 @@ export default function Scanner() {
           draw.drawLandmarks(bodyLm, { radius: 4, color: 'rgba(255,255,255,0.95)', fillColor: 'rgba(34,211,238,0.6)' })
           ctx.restore()
 
-          processRep(lm)
+          if (matchLiveRef.current) processRep(lm)
           const form  = analyzeForm(exerciseRef.current, lm)
           const score = getFormScore(exerciseRef.current, lm)
           scoreAtFrameRef.current = score
@@ -387,9 +407,15 @@ export default function Scanner() {
   // ── Derived ───────────────────────────────────────────────────────────────
   const transform   = mirrorMode ? 'scaleX(-1)' : 'none'
   const isTimeBased = EXERCISES[exercise].isTimeBased
-  const winnerState = isCompete && reps >= REP_TARGET ? 'win'
-    : isCompete && (compete.opponent?.reps ?? 0) >= REP_TARGET ? 'lose'
+  const winnerState = isCompete && compete.matchPhase !== 'countdown' && reps >= REP_TARGET ? 'win'
+    : isCompete && compete.matchPhase !== 'countdown' && (compete.opponent?.reps ?? 0) >= REP_TARGET ? 'lose'
     : null
+
+  // First to the target ⇒ tell both sides the round ended.
+  const endMatch = compete.endMatch
+  useEffect(() => {
+    if (winnerState) endMatch()
+  }, [winnerState, endMatch])
   const bannerStyle = feedback ? BANNER[feedback.color] : null
   const glow        = streakGlow(streak.streak)
   const avgScore    = repRecordsRef.current.length
@@ -492,8 +518,39 @@ export default function Scanner() {
         <canvas ref={canvasRef} className="absolute inset-0 w-full h-full object-cover pointer-events-none z-[1]"
           style={{ display: status === 'ready' ? 'block' : 'none', transform }} />
 
-        <CameraGuide visible={status === 'ready' && !poseDetected} />
+        <CameraGuide visible={status === 'ready' && !poseDetected && compete.matchPhase !== 'countdown'} />
         {status === 'ready' && <ScanlineFx />}
+
+        {/* Pre-match countdown — synced across both peers; Start Now skips it if both tap */}
+        {isCompete && compete.matchPhase === 'countdown' && (
+          <div
+            className="absolute inset-0 z-[6] flex flex-col items-center justify-center px-8 text-center"
+            style={{ background: 'rgba(5,5,5,0.82)', backdropFilter: 'blur(10px)', WebkitBackdropFilter: 'blur(10px)' }}
+          >
+            <p style={{ ...fontMono, fontSize: 11, letterSpacing: 4, color: 'rgba(255,255,255,0.4)' }}>GET READY</p>
+            <div
+              key={compete.countdownSec}
+              style={{
+                ...fontHead, fontSize: 116, fontWeight: 900, lineHeight: 1,
+                color: ACCENT_GREEN, textShadow: `0 0 50px ${ACCENT_GREEN}aa`,
+                animation: 'winner-pop 0.4s ease-out', margin: '8px 0',
+              }}
+            >
+              {compete.countdownSec > 0 ? compete.countdownSec : 'GO'}
+            </div>
+            <p style={{ ...fontMono, fontSize: 12, color: 'rgba(255,255,255,0.5)' }}>
+              First to {REP_TARGET} {EXERCISES[exercise].name} wins
+            </p>
+            <button
+              onClick={() => compete.startNow()}
+              disabled={compete.startedEarly}
+              className="mt-8 px-8 py-3.5 rounded-3xl font-black uppercase tracking-widest active:scale-95 transition-transform disabled:opacity-50"
+              style={{ ...fontHead, background: `linear-gradient(135deg, ${ACCENT}, ${ACCENT_GREEN})`, color: '#04121a' }}
+            >
+              {compete.startedEarly ? 'Waiting for rival…' : 'Start now'}
+            </button>
+          </div>
+        )}
 
         {status === 'ready' && (
           <>
@@ -699,13 +756,25 @@ export default function Scanner() {
                 }}>
                   {winnerState === 'win' ? '🏆 WINNER!' : '💀 DEFEATED'}
                 </div>
-                <button
-                  onClick={() => navigate('/')}
-                  className="mt-8 px-8 py-3.5 rounded-3xl font-black uppercase tracking-widest active:scale-95 transition-transform"
-                  style={{ ...fontHead, background: `linear-gradient(135deg, ${ACCENT}, ${ACCENT_GREEN})`, color: '#04121a' }}
-                >
-                  Home
-                </button>
+                <p style={{ ...fontMono, fontSize: 12, color: 'rgba(255,255,255,0.5)', marginTop: 8 }}>
+                  You {reps} · Rival {compete.opponent?.reps ?? 0}
+                </p>
+                <div className="mt-8 flex items-center gap-3">
+                  <button
+                    onClick={() => compete.rematch()}
+                    className="px-7 py-3.5 rounded-3xl font-black uppercase tracking-widest active:scale-95 transition-transform"
+                    style={{ ...fontHead, background: `linear-gradient(135deg, ${ACCENT}, ${ACCENT_GREEN})`, color: '#04121a', boxShadow: `0 6px 24px ${ACCENT}55` }}
+                  >
+                    ⟳ Rematch
+                  </button>
+                  <button
+                    onClick={() => navigate('/')}
+                    className="px-7 py-3.5 rounded-3xl font-black uppercase tracking-widest active:scale-95 transition-transform"
+                    style={{ ...fontHead, ...glassTint(ACCENT_GREEN), color: ACCENT_GREEN }}
+                  >
+                    Home
+                  </button>
+                </div>
               </div>
             )}
 
